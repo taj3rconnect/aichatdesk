@@ -48,6 +48,7 @@ app.use('/api/knowledge', require('./routes/knowledge')); // Phase 2
 app.use('/api/upload', require('./routes/upload')); // Phase 3 - File uploads
 app.use('/api/messages', require('./routes/messages')); // Phase 5 - Message creation with internal notes
 app.use('/api/dashboard', require('./routes/dashboard')); // Phase 6 - Operator dashboard
+app.use('/api/analytics', require('./routes/analytics')); // Phase 6 - Analytics
 
 // Error handler
 app.use((err, req, res, next) => {
