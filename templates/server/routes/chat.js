@@ -4,6 +4,7 @@ const { Chat, Agent } = require('../db/models');
 const { assignAgentToChat } = require('../utils/routing');
 const { authenticateAgent } = require('../middleware/auth');
 const { broadcast } = require('../websocket');
+const { sendNewChatNotification } = require('../utils/email');
 
 const router = express.Router();
 
@@ -47,6 +48,16 @@ router.post('/', async (req, res) => {
     });
 
     await chat.save();
+
+    // Send new chat notification email (fire-and-forget)
+    try {
+      sendNewChatNotification(chat).catch(err =>
+        console.error('Email notification error:', err)
+      );
+    } catch (err) {
+      // Silently fail - don't block chat creation
+      console.error('Failed to trigger email notification:', err);
+    }
 
     // Attempt to assign agent based on category
     let assignment = null;
