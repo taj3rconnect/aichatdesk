@@ -2,6 +2,7 @@ const express = require('express');
 const { Message, Chat, Agent } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
 const { broadcast } = require('../websocket');
+const { sendChatTranscript } = require('../utils/email');
 
 const router = express.Router();
 
@@ -92,6 +93,77 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Create message error:', err);
+    if (err.name === 'MongoError' || err.name === 'MongoServerError') {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/chat/:sessionId/end
+ * End chat session and send transcript email
+ */
+router.post('/chat/:sessionId/end', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { rating, ratingComment } = req.body;
+
+    // Find chat by session ID
+    const chat = await Chat.findOne({ sessionId });
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    // Check if already closed
+    if (chat.status === 'closed') {
+      return res.status(400).json({ error: 'Chat already closed' });
+    }
+
+    // Update chat status
+    chat.status = 'closed';
+    chat.endedAt = new Date();
+
+    // Update rating if provided
+    if (rating !== undefined) {
+      chat.rating = rating;
+    }
+    if (ratingComment) {
+      chat.ratingComment = ratingComment;
+    }
+
+    await chat.save();
+
+    // Send transcript email (fire-and-forget)
+    try {
+      sendChatTranscript(chat._id).catch(err =>
+        console.error('Transcript email error:', err)
+      );
+    } catch (err) {
+      // Silently fail - don't block response
+      console.error('Failed to trigger transcript email:', err);
+    }
+
+    // Broadcast WebSocket event
+    try {
+      broadcast({
+        type: 'dashboard.chat.closed',
+        sessionId,
+        chatId: chat._id
+      }, sessionId);
+    } catch (err) {
+      // Log but don't fail
+      console.error('WebSocket broadcast error:', err);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Chat ended',
+      transcript: chat.userEmail ? `Email sent to ${chat.userEmail}` : 'No email configured'
+    });
+  } catch (err) {
+    console.error('End chat error:', err);
     if (err.name === 'MongoError' || err.name === 'MongoServerError') {
       return res.status(500).json({ error: 'Database error' });
     }
