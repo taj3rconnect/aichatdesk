@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
+import KnowledgeBase from './pages/KnowledgeBase';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
@@ -144,7 +145,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/analytics" element={<Placeholder title="Analytics" />} />
-              <Route path="/knowledge" element={<Placeholder title="Knowledge Base" />} />
+              <Route path="/knowledge" element={<KnowledgeBase />} />
               <Route path="/settings" element={<Placeholder title="Settings" />} />
             </Routes>
           </main>
