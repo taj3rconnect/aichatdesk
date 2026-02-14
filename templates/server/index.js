@@ -24,11 +24,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'aichatdesk', timestamp: Date.now() });
 });
 
+// Static file serving for uploads
+app.use('/uploads', express.static('uploads'));
+
 // Routes (placeholders for Phase 2+)
 app.use('/api/chat', require('./routes/chat')); // Phase 3
 app.use('/api/ai', require('./routes/ai')); // Phase 2
 app.use('/api/agents', require('./routes/agents')); // Phase 4
 app.use('/api/knowledge', require('./routes/knowledge')); // Phase 2
+app.use('/api/upload', require('./routes/upload')); // Phase 3 - File uploads
 
 // Error handler
 app.use((err, req, res, next) => {
