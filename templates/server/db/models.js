@@ -78,7 +78,8 @@ const cannedResponseSchema = new mongoose.Schema({
   category: String,
   shortcut: String,
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
-  usageCount: { type: Number, default: 0 }
+  usageCount: { type: Number, default: 0 },
+  active: { type: Boolean, default: true }
 }, { timestamps: true });
 
 // Export models with aichatdesk_ collection names
