@@ -14,6 +14,7 @@ const chatSchema = new mongoose.Schema({
   assignedAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
   mode: { type: String, enum: ['ai', 'human'], default: 'ai' },
   summary: String,
+  metadata: mongoose.Schema.Types.Mixed, // Sentiment reasoning and other metadata
   startedAt: { type: Date, default: Date.now },
   endedAt: Date,
   rating: Number,

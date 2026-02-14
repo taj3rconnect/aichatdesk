@@ -1,6 +1,10 @@
 const { Server } = require('ws');
+const { Message } = require('./db/models');
 
 let wss;
+
+// Track message counts per chat for sentiment analysis throttling
+const messageCountMap = new Map();
 
 function initWebSocket(server) {
   wss = new Server({ server, path: '/ws' });
@@ -37,6 +41,11 @@ function initWebSocket(server) {
             break;
           case 'chat.message':
             // Handle chat message (Phase 3)
+            // Auto-trigger sentiment analysis after user message
+            if (message.chatId && message.sender === 'user') {
+              // Trigger sentiment analysis asynchronously (non-blocking)
+              triggerSentimentAnalysis(message.chatId);
+            }
             break;
           case 'typing.start':
           case 'typing.stop':
@@ -137,6 +146,41 @@ function broadcastToDashboard(eventType, data) {
       }));
     }
   });
+}
+
+/**
+ * Trigger sentiment analysis for a chat (throttled)
+ * @param {String} chatId - Chat ID to analyze
+ */
+async function triggerSentimentAnalysis(chatId) {
+  try {
+    // Get current message count for this chat
+    const messageCount = await Message.countDocuments({ chatId });
+
+    // Only analyze every 3rd message to reduce API costs
+    if (messageCount % 3 !== 0) {
+      return;
+    }
+
+    // Non-blocking API call
+    const API_URL = process.env.API_URL || 'http://localhost:8001';
+    const fetch = require('node-fetch');
+
+    fetch(`${API_URL}/api/ai/analyze-sentiment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId })
+    })
+      .then(res => res.json())
+      .then(result => {
+        console.log(`[Sentiment] Chat ${chatId}: ${result.priority} priority`);
+      })
+      .catch(err => {
+        console.error(`[Sentiment] Error analyzing chat ${chatId}:`, err.message);
+      });
+  } catch (err) {
+    console.error('[Sentiment] Error triggering analysis:', err);
+  }
 }
 
 module.exports = { initWebSocket, broadcast, broadcastToDashboard };
