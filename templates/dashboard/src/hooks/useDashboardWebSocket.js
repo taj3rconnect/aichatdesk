@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { showChatNotification, playNotificationSound, requestNotificationPermission } from '../utils/notifications';
 
 /**
  * Custom hook for dashboard WebSocket connection
@@ -119,6 +120,12 @@ function useDashboardWebSocket(url) {
   // Event handlers for chat updates
   const handleChatCreated = (data) => {
     setChats(prev => [data.chat, ...prev]);
+
+    // Trigger notifications for new chats
+    playNotificationSound(data.chat.priority || 'medium');
+    if (data.chat.priority === 'high') {
+      showChatNotification(data.chat);
+    }
   };
 
   const handleChatUpdated = (data) => {
@@ -146,6 +153,11 @@ function useDashboardWebSocket(url) {
 
   // Auto-connect on mount, disconnect on unmount
   useEffect(() => {
+    // Request notification permission on mount
+    requestNotificationPermission().then(permission => {
+      console.log('Notification permission:', permission);
+    });
+
     connect();
 
     return () => {
