@@ -1,0 +1,12 @@
+{
+  "name": "aichatdesk",
+  "version": "0.1.0",
+  "description": "AI-powered customer support chat widget with RAG, human takeover, and operator dashboard",
+  "skills": [
+    {
+      "name": "add",
+      "description": "Add AIChatDesk widget and standalone server to a React project",
+      "invocation": "aichatdesk:add"
+    }
+  ]
+}
