@@ -1,7 +1,9 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { Chat } = require('../db/models');
+const { Chat, Agent } = require('../db/models');
 const { assignAgentToChat } = require('../utils/routing');
+const { authenticateAgent } = require('../middleware/auth');
+const { broadcast } = require('../websocket');
 
 const router = express.Router();
 
@@ -164,6 +166,113 @@ router.get('/:sessionId', async (req, res) => {
     });
   } catch (err) {
     console.error('Get chat error:', err);
+    if (err.name === 'MongoError' || err.name === 'MongoServerError') {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/chat/:sessionId/takeover
+ * Agent manually takes over AI chat
+ */
+router.post('/:sessionId/takeover', authenticateAgent, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Find chat by session ID
+    const chat = await Chat.findOne({ sessionId });
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    // Check if already in human mode with assigned agent (idempotent)
+    if (chat.mode === 'human' && chat.assignedAgent) {
+      const agent = await Agent.findById(chat.assignedAgent);
+      return res.status(200).json({
+        success: true,
+        message: 'Already assigned',
+        agent: {
+          id: agent._id,
+          name: agent.name
+        }
+      });
+    }
+
+    // Update chat to human mode
+    chat.mode = 'human';
+    chat.assignedAgent = req.agent.agentId;
+    chat.status = 'active';
+    await chat.save();
+
+    // Fetch agent name for response
+    const agent = await Agent.findById(req.agent.agentId);
+
+    // Broadcast WebSocket event to notify user
+    broadcast({
+      type: 'agent.takeover',
+      sessionId,
+      agentName: agent.name,
+      timestamp: new Date().toISOString()
+    }, sessionId);
+
+    return res.status(200).json({
+      success: true,
+      agent: {
+        id: agent._id,
+        name: agent.name
+      },
+      message: 'Takeover successful'
+    });
+  } catch (err) {
+    console.error('Takeover error:', err);
+    if (err.name === 'MongoError' || err.name === 'MongoServerError') {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/chat/:sessionId/return-to-ai
+ * Agent returns chat to AI mode
+ */
+router.post('/:sessionId/return-to-ai', authenticateAgent, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Find chat by session ID
+    const chat = await Chat.findOne({ sessionId });
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    // Validate requesting agent is the assignedAgent
+    if (chat.assignedAgent && chat.assignedAgent.toString() !== req.agent.agentId) {
+      return res.status(403).json({ error: 'Only assigned agent can return chat to AI' });
+    }
+
+    // Update chat to AI mode
+    chat.mode = 'ai';
+    chat.assignedAgent = null;
+    await chat.save();
+
+    // Broadcast WebSocket event to notify user
+    broadcast({
+      type: 'agent.return',
+      sessionId,
+      timestamp: new Date().toISOString()
+    }, sessionId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Chat returned to AI'
+    });
+  } catch (err) {
+    console.error('Return to AI error:', err);
     if (err.name === 'MongoError' || err.name === 'MongoServerError') {
       return res.status(500).json({ error: 'Database error' });
     }
