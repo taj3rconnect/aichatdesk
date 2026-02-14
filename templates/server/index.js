@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const { connectDB } = require('./db/connection');
 const corsMiddleware = require('./middleware/cors');
 const rateLimiter = require('./middleware/rateLimiter');
@@ -26,6 +28,17 @@ app.get('/health', (req, res) => {
 
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
+
+// Serve dashboard static files (embedded mode - if built)
+const dashboardPath = path.join(__dirname, '../dashboard/build');
+if (fs.existsSync(dashboardPath)) {
+  app.use('/aichatdesk/dashboard', express.static(dashboardPath));
+  // Handle client-side routing (React Router)
+  app.get('/aichatdesk/dashboard/*', (req, res) => {
+    res.sendFile(path.join(dashboardPath, 'index.html'));
+  });
+  console.log('Dashboard embedded mode enabled at /aichatdesk/dashboard');
+}
 
 // Routes (placeholders for Phase 2+)
 app.use('/api/chat', require('./routes/chat')); // Phase 3
