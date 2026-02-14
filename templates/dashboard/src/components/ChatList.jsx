@@ -52,7 +52,8 @@ const styles = {
   },
   tr: {
     borderBottom: '1px solid #e0e0e0',
-    transition: 'background-color 0.2s'
+    transition: 'background-color 0.2s',
+    cursor: 'pointer'
   },
   trHover: {
     backgroundColor: '#f9f9f9'
@@ -81,8 +82,8 @@ const styles = {
     color: '#666'
   },
   priorityLow: {
-    backgroundColor: '#e3f2fd',
-    color: '#1565c0'
+    backgroundColor: '#e8f5e9',
+    color: '#2e7d32'
   },
   priorityMedium: {
     backgroundColor: '#fff3e0',
@@ -91,6 +92,21 @@ const styles = {
   priorityHigh: {
     backgroundColor: '#ffebee',
     color: '#c62828'
+  },
+  sentimentPositive: {
+    color: '#2e7d32'
+  },
+  sentimentNeutral: {
+    color: '#666'
+  },
+  sentimentNegative: {
+    color: '#c62828'
+  },
+  filterCount: {
+    fontSize: '14px',
+    color: '#666',
+    marginBottom: '12px',
+    fontWeight: '500'
   },
   categoryTag: {
     display: 'inline-block',
@@ -159,7 +175,7 @@ const styles = {
   }
 };
 
-function ChatList() {
+function ChatList({ filters, onChatSelect }) {
   const [loading, setLoading] = useState(true);
   const [hoveredRow, setHoveredRow] = useState(null);
   const { connected, chats, error, setChats } = useDashboardWebSocket(WS_URL);
@@ -183,6 +199,58 @@ function ChatList() {
     fetchChats();
   }, [setChats]);
 
+  // Client-side filtering based on active filters
+  const filteredChats = chats.filter(chat => {
+    if (!filters) return true;
+
+    // Status filter
+    if (filters.status && filters.status !== 'all' && chat.status !== filters.status) {
+      return false;
+    }
+
+    // Priority filter
+    if (filters.priority && filters.priority !== 'all' && chat.priority !== filters.priority) {
+      return false;
+    }
+
+    // Category filter
+    if (filters.category && filters.category !== 'all' && chat.category !== filters.category) {
+      return false;
+    }
+
+    // Agent filter
+    if (filters.agent && filters.agent !== 'all') {
+      if (filters.agent === 'unassigned' && chat.assignedAgent) {
+        return false;
+      } else if (filters.agent !== 'unassigned' && (!chat.assignedAgent || chat.assignedAgent._id !== filters.agent)) {
+        return false;
+      }
+    }
+
+    // Date range filter
+    if (filters.dateRange) {
+      const chatDate = new Date(chat.startedAt);
+      if (filters.dateRange.from && chatDate < new Date(filters.dateRange.from)) {
+        return false;
+      }
+      if (filters.dateRange.to && chatDate > new Date(filters.dateRange.to)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Sort chats by priority (high → medium → low), then by startedAt descending
+  const sortedChats = [...filteredChats].sort((a, b) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    const priorityDiff = (priorityOrder[b.priority] || 2) - (priorityOrder[a.priority] || 2);
+
+    if (priorityDiff !== 0) return priorityDiff;
+
+    return new Date(b.startedAt) - new Date(a.startedAt);
+  });
+
   const getStatusBadge = (status) => {
     const statusStyles = {
       active: styles.statusActive,
@@ -204,11 +272,35 @@ function ChatList() {
       high: styles.priorityHigh
     };
 
+    const priorityIcons = {
+      low: '✓',
+      medium: '⚠',
+      high: '!'
+    };
+
     return (
-      <span style={{ ...styles.badge, ...priorityStyles[priority] }}>
-        {priority.charAt(0).toUpperCase() + priority.slice(1)}
+      <span style={{ ...styles.badge, ...priorityStyles[priority || 'medium'] }}>
+        {priorityIcons[priority || 'medium']} {(priority || 'medium').charAt(0).toUpperCase() + (priority || 'medium').slice(1)}
       </span>
     );
+  };
+
+  const getSentimentEmoji = (sentiment) => {
+    const emojis = {
+      positive: '😊',
+      neutral: '😐',
+      negative: '😟'
+    };
+    return emojis[sentiment] || '';
+  };
+
+  const getSentimentStyle = (sentiment) => {
+    const sentimentStyles = {
+      positive: styles.sentimentPositive,
+      neutral: styles.sentimentNeutral,
+      negative: styles.sentimentNegative
+    };
+    return sentimentStyles[sentiment] || {};
   };
 
   const formatWaitTime = (waitTimeMinutes) => {
@@ -266,6 +358,14 @@ function ChatList() {
     );
   }
 
+  const hasActiveFilters = filters && (
+    (filters.status && filters.status !== 'all') ||
+    (filters.priority && filters.priority !== 'all') ||
+    (filters.category && filters.category !== 'all') ||
+    (filters.agent && filters.agent !== 'all') ||
+    filters.dateRange
+  );
+
   return (
     <div style={styles.container}>
       {/* Connection Status */}
@@ -286,12 +386,23 @@ function ChatList() {
         </div>
       )}
 
+      {/* Filter count */}
+      {hasActiveFilters && (
+        <div style={styles.filterCount}>
+          Showing {sortedChats.length} of {chats.length} chats
+        </div>
+      )}
+
       {/* Chat List */}
-      {chats.length === 0 ? (
+      {sortedChats.length === 0 ? (
         <div style={styles.emptyState}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
-          <h3 style={{ margin: '0 0 8px 0', color: '#666' }}>No active chats</h3>
-          <p style={{ margin: 0 }}>New chats will appear here in real-time</p>
+          <h3 style={{ margin: '0 0 8px 0', color: '#666' }}>
+            {hasActiveFilters ? 'No chats match filters' : 'No active chats'}
+          </h3>
+          <p style={{ margin: 0 }}>
+            {hasActiveFilters ? 'Try adjusting your filters' : 'New chats will appear here in real-time'}
+          </p>
         </div>
       ) : (
         <table style={styles.table}>
@@ -307,7 +418,7 @@ function ChatList() {
             </tr>
           </thead>
           <tbody>
-            {chats.map((chat) => (
+            {sortedChats.map((chat) => (
               <tr
                 key={chat._id}
                 style={{
@@ -316,11 +427,12 @@ function ChatList() {
                 }}
                 onMouseEnter={() => setHoveredRow(chat._id)}
                 onMouseLeave={() => setHoveredRow(null)}
+                onClick={() => onChatSelect && onChatSelect(chat)}
               >
                 <td style={styles.td}>
                   <div style={styles.userInfo}>
-                    <span style={styles.userName}>
-                      {chat.userName || 'Anonymous'}
+                    <span style={{ ...styles.userName, ...getSentimentStyle(chat.sentiment) }}>
+                      {chat.sentiment && getSentimentEmoji(chat.sentiment)} {chat.userName || 'Anonymous'}
                     </span>
                     <span style={styles.userEmail}>
                       {chat.userEmail || 'No email'}

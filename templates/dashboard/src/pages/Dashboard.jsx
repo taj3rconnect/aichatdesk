@@ -47,6 +47,31 @@ const styles = {
 
 function Dashboard() {
   const [selectedChat, setSelectedChat] = useState(null);
+  const [filters, setFilters] = useState({
+    status: 'active',
+    priority: 'all',
+    category: 'all',
+    agent: 'all',
+    dateRange: null
+  });
+  const [agents, setAgents] = useState([]);
+
+  // Fetch agents list for filter dropdown
+  useEffect(() => {
+    async function fetchAgents() {
+      try {
+        const response = await fetch(`${API_URL}/api/agents/online`);
+        if (!response.ok) throw new Error('Failed to fetch agents');
+
+        const data = await response.json();
+        setAgents(data);
+      } catch (err) {
+        console.error('Error fetching agents:', err);
+      }
+    }
+
+    fetchAgents();
+  }, []);
 
   return (
     <div style={styles.container}>
@@ -55,10 +80,12 @@ function Dashboard() {
         <p style={styles.subtitle}>Monitor all ongoing chats in real-time</p>
       </div>
 
+      <FilterBar filters={filters} onFilterChange={setFilters} agents={agents} />
+
       <div style={styles.layout}>
         {/* Main chat list */}
         <div style={styles.mainContent}>
-          <ChatList onChatSelect={setSelectedChat} />
+          <ChatList filters={filters} onChatSelect={setSelectedChat} />
         </div>
 
         {/* Sidebar with user info and attachments */}
