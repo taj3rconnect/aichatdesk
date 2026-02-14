@@ -13,7 +13,7 @@ const router = express.Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { userEmail, userName, subject } = req.body;
+    const { userEmail, userName, subject, currentPage } = req.body;
 
     // Validate required fields
     if (!userEmail || !userName) {
@@ -23,6 +23,14 @@ router.post('/', async (req, res) => {
     // Generate session ID
     const sessionId = uuidv4();
 
+    // Capture metadata for user context
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+                     req.headers['x-real-ip'] ||
+                     req.connection?.remoteAddress ||
+                     req.socket?.remoteAddress ||
+                     '';
+
     // Create chat document
     const chat = new Chat({
       sessionId,
@@ -30,7 +38,12 @@ router.post('/', async (req, res) => {
       userName,
       status: 'active',
       mode: 'ai', // Default to AI mode
-      category: 'general' // Default category, can be updated by AI later
+      category: 'general', // Default category, can be updated by AI later
+      metadata: {
+        userAgent,
+        ipAddress,
+        currentPage: currentPage || ''
+      }
     });
 
     await chat.save();
