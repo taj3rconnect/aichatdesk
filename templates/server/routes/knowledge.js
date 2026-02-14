@@ -142,6 +142,78 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 /**
+ * POST /api/knowledge/import-url
+ * Fetch a web page and add its content to the knowledge base
+ */
+router.post('/import-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'url is required' });
+    }
+
+    // Fetch the page
+    const cheerio = require('cheerio');
+    let response;
+    try {
+      response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      return res.status(400).json({ error: `Failed to fetch URL: ${err.message}` });
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    // Remove scripts, styles, nav, footer
+    $('script, style, nav, footer, header, noscript, iframe').remove();
+
+    // Extract text from main content areas
+    const title = $('title').text().trim() || url;
+    const bodyText = $('main, article, .content, .faq, #content, body')
+      .first()
+      .text()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!bodyText || bodyText.length < 50) {
+      return res.status(400).json({ error: 'Could not extract meaningful content from this URL' });
+    }
+
+    // Chunk and embed
+    const rawChunks = chunkText(bodyText);
+    // chunkText returns {text, index} objects
+    const chunkObjs = rawChunks.map(c => typeof c === 'string' ? { text: c } : c);
+
+    const kbEntry = await KnowledgeBase.create({
+      filename: `url-import-${Date.now()}`,
+      originalName: title.substring(0, 100),
+      fileType: 'web-page',
+      content: bodyText,
+      chunks: chunkObjs.map(c => ({ text: c.text })),
+      active: true
+    });
+
+    // generateEmbeddingsForChunks(knowledgeBaseId, chunks) — chunks need .text property
+    // It also links embeddings back to KB doc automatically
+    const embeddingCount = await generateEmbeddingsForChunks(kbEntry._id, chunkObjs);
+
+    console.log(`[KB] Imported URL: ${title} (${chunkObjs.length} chunks, ${embeddingCount} embeddings)`);
+
+    res.json({
+      success: true,
+      title,
+      contentLength: bodyText.length,
+      chunks: chunkObjs.length,
+      embeddings: embeddingCount
+    });
+  } catch (error) {
+    console.error('URL import error:', error);
+    res.status(500).json({ error: `Failed to import URL: ${error.message}` });
+  }
+});
+
+/**
  * GET /api/knowledge
  * List all knowledge base documents
  */
@@ -205,6 +277,53 @@ router.get('/:id', async (req, res) => {
       error: 'Failed to retrieve document',
       details: error.message
     });
+  }
+});
+
+/**
+ * PUT /api/knowledge/:id
+ * Update document content, re-chunk and re-embed
+ */
+router.put('/:id', async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    const document = await KnowledgeBase.findById(req.params.id);
+    if (!document || !document.active) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Delete old embeddings
+    await deleteEmbeddings(document._id);
+
+    // Re-chunk the new content
+    const rawChunks = chunkText(content);
+    const chunkObjs = rawChunks.map(c => typeof c === 'string' ? { text: c } : c);
+
+    // Update document
+    document.content = content;
+    document.chunks = chunkObjs.map(c => ({ text: c.text }));
+    await document.save();
+
+    // Re-generate embeddings
+    const embeddingCount = await generateEmbeddingsForChunks(document._id, chunkObjs);
+
+    console.log(`[KB] Updated document ${document.originalName}: ${chunkObjs.length} chunks, ${embeddingCount} embeddings`);
+
+    res.json({
+      success: true,
+      chunks: chunkObjs.length,
+      embeddings: embeddingCount
+    });
+  } catch (error) {
+    console.error('Update document error:', error);
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+    res.status(500).json({ error: 'Failed to update document' });
   }
 });
 

@@ -66,10 +66,9 @@ async function assignAgentToChat(chatId, category) {
     // Random selection among agents with same workload (load balancing)
     const selectedAgent = bestAgents[Math.floor(Math.random() * bestAgents.length)];
 
-    // Assign chat to selected agent
+    // Assign chat to selected agent (stays in AI mode until agent takes over)
     await Chat.findByIdAndUpdate(chatId, {
-      assignedAgent: selectedAgent._id,
-      mode: 'human'
+      assignedAgent: selectedAgent._id
     });
 
     return {

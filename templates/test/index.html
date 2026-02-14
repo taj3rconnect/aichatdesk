@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIChatDesk - Customer Test Page</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    .header { background: linear-gradient(135deg, #6C5CE7, #a29bfe); color: white; padding: 20px 40px; }
+    .header h1 { font-size: 24px; margin-bottom: 5px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    .card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .card h2 { font-size: 18px; margin-bottom: 15px; color: #6C5CE7; }
+    .card p { line-height: 1.6; color: #666; margin-bottom: 10px; }
+    .status-bar { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+    .status-item { background: #f0f0f0; padding: 10px 16px; border-radius: 8px; font-size: 13px; }
+    .status-item span { font-weight: 600; color: #6C5CE7; }
+    .test-section { margin-top: 30px; }
+    .test-section h3 { font-size: 16px; margin-bottom: 10px; }
+    .test-btn { background: #6C5CE7; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-right: 10px; margin-bottom: 10px; }
+    .test-btn:hover { background: #5a4bd1; }
+    .test-btn.secondary { background: #ddd; color: #333; }
+    .test-btn.secondary:hover { background: #ccc; }
+    .log { background: #1e1e1e; color: #0f0; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 200px; overflow-y: auto; margin-top: 15px; }
+    .log-entry { margin-bottom: 4px; }
+    .log-entry .time { color: #888; }
+    .nav-links { display: flex; gap: 10px; margin-top: 15px; }
+    .nav-links a { color: #6C5CE7; text-decoration: none; font-size: 14px; }
+    .nav-links a:hover { text-decoration: underline; }
+    .page-info { background: #e8f4fd; padding: 12px 16px; border-radius: 8px; font-size: 13px; color: #1a73e8; margin-bottom: 15px; }
+    footer { text-align: center; padding: 30px; color: #999; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>MyApp - Sample Product Page</h1>
+    <p>This is a test page to simulate a customer browsing your website with the AIChatDesk widget</p>
+  </div>
+
+  <div class="content">
+    <div class="page-info">
+      This page simulates a real customer-facing website. The AIChatDesk chat widget should appear in the bottom-right corner.
+      Click it to start a support conversation with the AI.
+    </div>
+
+    <div class="card">
+      <h2>Server Connection</h2>
+      <p>The chat widget connects to your AIChatDesk server. Make sure the server is running.</p>
+      <div class="status-bar">
+        <div class="status-item">Server: <span id="server-status">Checking...</span></div>
+        <div class="status-item">WebSocket: <span id="ws-status">Not connected</span></div>
+        <div class="status-item">Page URL: <span id="page-url"></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Test Scenarios</h2>
+      <p>Try these scenarios to test the chat widget:</p>
+      <div class="test-section">
+        <button class="test-btn" onclick="navigateTo('pricing')">Go to Pricing Page</button>
+        <button class="test-btn" onclick="navigateTo('billing')">Go to Billing Page</button>
+        <button class="test-btn" onclick="navigateTo('docs')">Go to Documentation</button>
+        <button class="test-btn secondary" onclick="navigateTo('index')">Back to Home</button>
+      </div>
+      <p style="margin-top: 15px; font-size: 13px; color: #999;">
+        Navigating to different pages tests AI context awareness (AI-07) — the AI should tailor responses based on the current page.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Sample Content (for AI context)</h2>
+      <p><strong>MyApp</strong> is a project management tool for teams. Features include:</p>
+      <ul style="margin: 10px 0 10px 20px; color: #666; line-height: 1.8;">
+        <li>Task boards with drag-and-drop</li>
+        <li>Team collaboration with real-time updates</li>
+        <li>Time tracking and reporting</li>
+        <li>Integrations with Slack, GitHub, and Jira</li>
+        <li>Plans: Free, Pro ($10/mo), Enterprise (custom)</li>
+      </ul>
+      <p>Upload some FAQ documents about this imaginary product to test RAG responses.</p>
+    </div>
+
+    <div class="card">
+      <h2>Event Log</h2>
+      <p>Chat widget events will appear here:</p>
+      <div class="log" id="event-log">
+        <div class="log-entry"><span class="time">[--:--:--]</span> Waiting for events...</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    AIChatDesk Test Page | <a href="dashboard.html" style="color: #6C5CE7;">Open Agent Dashboard</a>
+  </footer>
+
+  <script>
+    const SERVER_URL = 'http://localhost:8001';
+    const WS_URL = 'ws://localhost:8001/ws';
+
+    // Page info
+    document.getElementById('page-url').textContent = window.location.pathname;
+
+    // Log utility
+    function log(msg) {
+      const logEl = document.getElementById('event-log');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="time">[${time}]</span> ${msg}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Check server health
+    async function checkServer() {
+      try {
+        const res = await fetch(`${SERVER_URL}/health`);
+        const data = await res.json();
+        document.getElementById('server-status').textContent = data.status === 'ok' ? 'Connected' : 'Error';
+        document.getElementById('server-status').style.color = data.status === 'ok' ? '#00b894' : '#e74c3c';
+        log(`Server health: ${JSON.stringify(data)}`);
+      } catch (err) {
+        document.getElementById('server-status').textContent = 'Offline';
+        document.getElementById('server-status').style.color = '#e74c3c';
+        log(`Server offline: ${err.message}`);
+      }
+    }
+
+    // WebSocket test
+    function connectWS() {
+      try {
+        const ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+          document.getElementById('ws-status').textContent = 'Connected';
+          document.getElementById('ws-status').style.color = '#00b894';
+          log('WebSocket connected');
+        };
+        ws.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+          log(`WS message: ${data.type} - ${JSON.stringify(data).substring(0, 100)}`);
+        };
+        ws.onclose = () => {
+          document.getElementById('ws-status').textContent = 'Disconnected';
+          document.getElementById('ws-status').style.color = '#e74c3c';
+          log('WebSocket disconnected');
+          setTimeout(connectWS, 3000);
+        };
+        ws.onerror = (err) => {
+          log('WebSocket error');
+        };
+      } catch (err) {
+        log(`WebSocket failed: ${err.message}`);
+      }
+    }
+
+    function navigateTo(page) {
+      log(`Navigating to: ${page}`);
+      // In a real app this would be actual navigation
+      // Here we just update the URL display to simulate page changes
+      document.getElementById('page-url').textContent = `/${page}`;
+      window.history.pushState({}, '', `/${page}`);
+    }
+
+    // Init
+    checkServer();
+    connectWS();
+    setInterval(checkServer, 30000);
+  </script>
+</body>
+</html>

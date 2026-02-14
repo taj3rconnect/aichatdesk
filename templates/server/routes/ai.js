@@ -54,7 +54,19 @@ router.post('/query', async (req, res) => {
     console.log(`[AI Query] Found ${ragResults.length} relevant knowledge base chunks`);
 
     // 4. Build Claude prompt
-    let systemPrompt = `You are a helpful customer support AI assistant. Answer questions based on the provided knowledge base context when available. If the knowledge base doesn't contain the answer, say so clearly and provide general help if possible. Respond in ${language} language.`;
+    let systemPrompt = `You are a helpful customer support AI assistant. Answer questions based on the provided knowledge base context when available. If the knowledge base doesn't contain the answer, say so clearly and provide general help if possible. Respond in ${language} language.
+
+Important rules:
+- NEVER include the user's personal information (their name, phone, email) in your responses
+- Do NOT greet the user by name or reference their personal details
+- Only provide company contact details when the user specifically asks for contact info, pricing, or important inquiries — do NOT add contact info to every reply
+- Focus only on answering the question with relevant product/service information
+
+Format rules:
+- Keep answers SHORT — 2-3 sentences max unless the user asks for detail
+- Use bullet points only when listing 3+ items
+- Use **bold** sparingly for key terms
+- No filler or repetition — get straight to the point`;
 
     // Add knowledge base context if available
     let contextText = '';
@@ -92,7 +104,7 @@ router.post('/query', async (req, res) => {
     // 6. Call Claude API
     const client = getAnthropicClient();
     const response = await client.messages.create({
-      model: process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20241022',
+      model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929',
       max_tokens: parseInt(process.env.CLAUDE_MAX_TOKENS || '1024'),
       messages: messages,
       system: systemPrompt
@@ -208,7 +220,7 @@ router.post('/summarize', async (req, res) => {
     // Call Claude to summarize
     const client = getAnthropicClient();
     const response = await client.messages.create({
-      model: process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20241022',
+      model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929',
       max_tokens: 100,
       messages: [{
         role: 'user',
@@ -333,7 +345,7 @@ Suggest a reply:`;
     // Call Anthropic API
     try {
       const response = await client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 300,
         temperature: 0.7,
         messages: [
@@ -427,7 +439,7 @@ Respond with JSON only:
 }`;
 
     const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 200,
       messages: [{
         role: 'user',

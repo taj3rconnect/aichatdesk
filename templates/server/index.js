@@ -29,6 +29,12 @@ app.get('/health', (req, res) => {
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
 
+// Serve test pages (development only)
+const testPath = process.env.TEST_PAGES_PATH;
+if (testPath && fs.existsSync(testPath)) {
+  app.use('/test', express.static(testPath));
+}
+
 // Serve dashboard static files (embedded mode - if built)
 const dashboardPath = path.join(__dirname, '../dashboard/build');
 if (fs.existsSync(dashboardPath)) {
@@ -62,6 +68,10 @@ app.use((err, req, res, next) => {
 
 // Initialize WebSocket server
 initWebSocket(server);
+
+// Initialize Teams bot (only if configured)
+const { initTeamsBot } = require('./utils/teamsBot');
+initTeamsBot(app);
 
 // Start server
 const PORT = process.env.AICHATDESK_PORT || 8001;

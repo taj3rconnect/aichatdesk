@@ -13,6 +13,9 @@ const chatSchema = new mongoose.Schema({
   sentiment: { type: String, enum: ['positive', 'neutral', 'negative'] },
   assignedAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
   mode: { type: String, enum: ['ai', 'human'], default: 'ai' },
+  ticketType: { type: String, enum: ['chat', 'bug', 'feature', 'question', 'support'], default: 'chat' },
+  userPriority: { type: String, enum: ['low', 'medium', 'high'] },
+  mood: { type: Number, min: 1, max: 5 },
   summary: String,
   metadata: mongoose.Schema.Types.Mixed, // Sentiment reasoning and other metadata
   startedAt: { type: Date, default: Date.now },
@@ -82,6 +85,14 @@ const cannedResponseSchema = new mongoose.Schema({
   active: { type: Boolean, default: true }
 }, { timestamps: true });
 
+const teamsConversationSchema = new mongoose.Schema({
+  sessionId: { type: String, required: true, unique: true, index: true },
+  conversationReference: { type: mongoose.Schema.Types.Mixed, required: true },
+  teamsUserId: String,
+  agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
+  threadId: String
+}, { timestamps: true });
+
 // Export models with aichatdesk_ collection names
 const Chat = mongoose.model('aichatdesk_chats', chatSchema);
 const Message = mongoose.model('aichatdesk_messages', messageSchema);
@@ -89,6 +100,7 @@ const Agent = mongoose.model('aichatdesk_agents', agentSchema);
 const KnowledgeBase = mongoose.model('aichatdesk_knowledge_base', knowledgeBaseSchema);
 const Embedding = mongoose.model('aichatdesk_embeddings', embeddingSchema);
 const CannedResponse = mongoose.model('aichatdesk_canned_responses', cannedResponseSchema);
+const TeamsConversation = mongoose.model('aichatdesk_teams_conversations', teamsConversationSchema);
 
 module.exports = {
   Chat,
@@ -96,5 +108,6 @@ module.exports = {
   Agent,
   KnowledgeBase,
   Embedding,
-  CannedResponse
+  CannedResponse,
+  TeamsConversation
 };

@@ -1,10 +1,12 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { Chat, Agent } = require('../db/models');
+const { Chat, Agent, Message } = require('../db/models');
 const { assignAgentToChat } = require('../utils/routing');
 const { authenticateAgent } = require('../middleware/auth');
 const { broadcast } = require('../websocket');
 const { sendNewChatNotification } = require('../utils/email');
+const { createGitHubIssue } = require('../utils/github');
+const { sendTeamsNotification } = require('../utils/teamsBot');
 
 const router = express.Router();
 
@@ -14,7 +16,7 @@ const router = express.Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { userEmail, userName, subject, currentPage } = req.body;
+    const { userEmail, userName, subject, currentPage, ticketType, userPriority, mood } = req.body;
 
     // Validate required fields
     if (!userEmail || !userName) {
@@ -38,8 +40,11 @@ router.post('/', async (req, res) => {
       userEmail,
       userName,
       status: 'active',
-      mode: 'ai', // Default to AI mode
-      category: 'general', // Default category, can be updated by AI later
+      mode: 'ai',
+      category: 'general',
+      ticketType: ticketType || 'chat',
+      userPriority: userPriority || undefined,
+      mood: mood ? parseInt(mood) : undefined,
       metadata: {
         userAgent,
         ipAddress,
@@ -59,6 +64,18 @@ router.post('/', async (req, res) => {
       console.error('Failed to trigger email notification:', err);
     }
 
+    // Send Teams notification (fire-and-forget)
+    sendTeamsNotification(chat).catch(err =>
+      console.error('Teams notification error:', err.message)
+    );
+
+    // Create GitHub issue for non-chat ticket types (fire-and-forget)
+    if (ticketType && ticketType !== 'chat') {
+      createGitHubIssue(chat, subject || '').catch(err =>
+        console.error('GitHub issue creation error:', err.message)
+      );
+    }
+
     // Attempt to assign agent based on category
     let assignment = null;
     try {
@@ -72,7 +89,7 @@ router.post('/', async (req, res) => {
     const response = {
       sessionId: chat.sessionId,
       chatId: chat._id,
-      mode: assignment ? 'human' : 'ai'
+      mode: 'ai'
     };
 
     // Include assigned agent info if available
@@ -300,6 +317,67 @@ router.post('/:sessionId/return-to-ai', authenticateAgent, async (req, res) => {
     if (err.name === 'MongoError' || err.name === 'MongoServerError') {
       return res.status(500).json({ error: 'Database error' });
     }
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/chat/:sessionId/messages
+ * Get all messages for a chat session
+ */
+router.get('/:sessionId/messages', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const chat = await Chat.findOne({ sessionId });
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    const { Message } = require('../db/models');
+    const messages = await Message.find({ chatId: chat._id })
+      .sort({ sentAt: 1 })
+      .select('sender senderName content isInternal sentAt attachments');
+
+    return res.json(messages);
+  } catch (err) {
+    console.error('Get messages error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/chat/:sessionId
+ * Delete a chat and all its messages (admin only)
+ */
+router.delete('/:sessionId', authenticateAgent, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Verify agent is admin
+    const agent = await Agent.findById(req.agent.agentId);
+    if (!agent || agent.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const chat = await Chat.findOne({ sessionId });
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    // Delete all messages for this chat
+    const msgResult = await Message.deleteMany({ chatId: chat._id });
+
+    // Delete the chat
+    await Chat.findByIdAndDelete(chat._id);
+
+    console.log(`[Admin] Deleted chat ${sessionId} (${msgResult.deletedCount} messages)`);
+
+    return res.json({
+      success: true,
+      deletedMessages: msgResult.deletedCount
+    });
+  } catch (err) {
+    console.error('Delete chat error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

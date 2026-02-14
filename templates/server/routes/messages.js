@@ -1,41 +1,145 @@
 const express = require('express');
-const { Message, Chat, Agent } = require('../db/models');
+const { Message, Chat, Agent, KnowledgeBase, Embedding } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
 const { broadcast } = require('../websocket');
 const { sendChatTranscript } = require('../utils/email');
+const { generateEmbedding } = require('../utils/embeddings');
+const { cosineSimilarity } = require('../utils/vectorSearch');
+const { sendTeamsReply } = require('../utils/teamsBot');
 
 const router = express.Router();
 
+const DUPLICATE_THRESHOLD = 0.85; // Above this = duplicate, merge instead of creating new
+
+/**
+ * Learn from agent reply: save Q&A pair to knowledge base with embedding.
+ * Checks for duplicates first — if a similar Q&A exists, merges any new info.
+ * Runs async (fire-and-forget) so it doesn't slow down the response.
+ */
+async function learnFromAgentReply(chatId, agentAnswer) {
+  try {
+    // Find the last user message before this agent reply
+    const lastUserMsg = await Message.findOne({
+      chatId,
+      sender: 'user',
+      isInternal: { $ne: true }
+    }).sort({ sentAt: -1 });
+
+    if (!lastUserMsg) return;
+
+    const question = lastUserMsg.content;
+    // Strip user's personal info from the question only (keep agent answer intact for contact details etc.)
+    const cleanQuestion = question
+      .replace(/\b(my name is|i'm|i am)\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*/gi, '[user]')
+      .replace(/\b(my (email|phone|number|cell) is)\s+\S+/gi, '[user contact]');
+    const qaText = `Q: ${cleanQuestion}\nA: ${agentAnswer}`;
+
+    // Generate embedding for the new Q&A
+    const newEmbeddingVector = await generateEmbedding(qaText);
+
+    // Search existing agent-reply embeddings for duplicates
+    const existingEmbeddings = await Embedding.find({
+      'metadata.source': 'agent-reply'
+    }).lean();
+
+    let bestMatch = null;
+    let bestSimilarity = 0;
+
+    for (const existing of existingEmbeddings) {
+      if (!existing.embedding || existing.embedding.length === 0) continue;
+      const similarity = cosineSimilarity(newEmbeddingVector, existing.embedding);
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = existing;
+      }
+    }
+
+    // Duplicate found — merge new info into existing entry
+    if (bestMatch && bestSimilarity >= DUPLICATE_THRESHOLD) {
+      const existingKB = await KnowledgeBase.findById(bestMatch.knowledgeBaseId);
+      if (!existingKB) {
+        // KB doc gone, clean up orphan embedding and create fresh
+        await Embedding.findByIdAndDelete(bestMatch._id);
+      } else {
+        // Merge: append the new answer if it adds info the old one doesn't have
+        const existingContent = existingKB.content || '';
+        const mergedContent = `${existingContent}\n\n---\nQ: ${question}\nA: ${agentAnswer}`;
+
+        existingKB.content = mergedContent;
+        existingKB.chunks[0].text = mergedContent;
+        await existingKB.save();
+
+        // Re-generate embedding for the merged content
+        const mergedVector = await generateEmbedding(mergedContent);
+        await Embedding.findByIdAndUpdate(bestMatch._id, {
+          text: mergedContent,
+          embedding: mergedVector
+        });
+
+        console.log(`[Learn] Merged agent Q&A into existing KB (similarity: ${bestSimilarity.toFixed(3)}): "${question.substring(0, 50)}..."`);
+        return;
+      }
+    }
+
+    // No duplicate — create new KB entry
+    const kbEntry = await KnowledgeBase.create({
+      filename: `agent-reply-${Date.now()}`,
+      originalName: 'Agent Reply (auto-learned)',
+      fileType: 'qa-pair',
+      content: qaText,
+      chunks: [{ text: qaText }],
+      active: true
+    });
+
+    const embedding = await Embedding.create({
+      knowledgeBaseId: kbEntry._id,
+      chunkIndex: 0,
+      text: qaText,
+      embedding: newEmbeddingVector,
+      metadata: { source: 'agent-reply', chatId: chatId.toString() }
+    });
+
+    kbEntry.chunks[0].embeddingId = embedding._id;
+    await kbEntry.save();
+
+    console.log(`[Learn] Saved new agent Q&A to knowledge base: "${question.substring(0, 50)}..."`);
+  } catch (err) {
+    console.error('[Learn] Failed to save agent reply to KB:', err.message);
+  }
+}
+
 /**
  * POST /api/messages
- * Create a new message (supports internal agent notes)
+ * Create a new message (supports agent messages and internal notes)
  */
 router.post('/', async (req, res) => {
   try {
-    const { chatId, content, isInternal } = req.body;
+    const { chatId, content, isInternal, sender } = req.body;
 
     // Validate required fields
     if (!chatId || !content) {
       return res.status(400).json({ error: 'chatId and content are required' });
     }
 
-    // If internal note, require authentication
-    if (isInternal) {
-      // Check if agent is authenticated
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authentication required for internal notes' });
-      }
+    // Determine sender type from request
+    let resolvedSender = sender || 'user';
+    let senderName = null;
 
-      // Manually verify token (authenticateAgent middleware not used on route)
+    // If agent or internal note, try to authenticate
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
       const jwt = require('jsonwebtoken');
       try {
         const token = authHeader.substring(7);
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.agent = decoded;
       } catch (err) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
+        if (isInternal) {
+          return res.status(401).json({ error: 'Invalid or expired token' });
+        }
       }
+    } else if (isInternal) {
+      return res.status(401).json({ error: 'Authentication required for internal notes' });
     }
 
     // Validate chat exists
@@ -45,19 +149,21 @@ router.post('/', async (req, res) => {
     }
 
     // Get sender name if authenticated agent
-    let senderName = 'Agent';
     if (req.agent && req.agent.agentId) {
       const agent = await Agent.findById(req.agent.agentId);
       if (agent) {
         senderName = agent.name;
+        if (sender === 'agent' || isInternal) {
+          resolvedSender = 'agent';
+        }
       }
     }
 
     // Create message document
     const message = new Message({
       chatId,
-      sender: isInternal ? 'agent' : 'user',
-      senderName: isInternal ? senderName : null,
+      sender: resolvedSender,
+      senderName,
       content,
       isInternal: isInternal || false
     });
@@ -77,6 +183,16 @@ router.post('/', async (req, res) => {
           sentAt: message.sentAt
         }
       }, chat.sessionId);
+    }
+
+    // If user sent a message, forward to Teams thread (fire-and-forget)
+    if (resolvedSender === 'user' && !isInternal) {
+      sendTeamsReply(chat.sessionId, content, chat.userName || 'Customer').catch(() => {});
+    }
+
+    // If agent sent a non-internal message, learn from it (async, fire-and-forget)
+    if (resolvedSender === 'agent' && !isInternal) {
+      learnFromAgentReply(chatId, content).catch(() => {});
     }
 
     return res.status(201).json({
