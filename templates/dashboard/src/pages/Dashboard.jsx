@@ -1,4 +1,5 @@
 import React from 'react';
+import ChatList from '../components/ChatList';
 
 const styles = {
   container: {
@@ -35,10 +36,7 @@ function Dashboard() {
         <p style={styles.subtitle}>Monitor all ongoing chats in real-time</p>
       </div>
       <div style={styles.section}>
-        {/* ChatList component will be added in Task 2 */}
-        <p style={{ color: '#999', textAlign: 'center', padding: '40px 0' }}>
-          Chat list will appear here
-        </p>
+        <ChatList />
       </div>
     </div>
   );

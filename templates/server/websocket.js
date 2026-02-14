@@ -23,8 +23,18 @@ function initWebSocket(server) {
           ws.sessionId = message.sessionId;
         }
 
+        // Store client type for targeted dashboard broadcasting
+        if (message.clientType && !ws.clientType) {
+          ws.clientType = message.clientType; // 'widget' or 'dashboard'
+        }
+
         // Message routing (implemented in Phase 3)
         switch (message.type) {
+          case 'dashboard.connect':
+            // Dashboard client connected
+            console.log('Dashboard client connected');
+            ws.clientType = 'dashboard';
+            break;
           case 'chat.message':
             // Handle chat message (Phase 3)
             break;
@@ -112,4 +122,21 @@ function broadcast(data, sessionId) {
   });
 }
 
-module.exports = { initWebSocket, broadcast };
+/**
+ * Broadcast data to dashboard clients only
+ * @param {String} eventType - Event type (e.g., 'dashboard.chat.created')
+ * @param {Object} data - Event data
+ */
+function broadcastToDashboard(eventType, data) {
+  wss.clients.forEach((client) => {
+    if (client.readyState === 1 && client.clientType === 'dashboard') {
+      client.send(JSON.stringify({
+        type: eventType,
+        ...data,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  });
+}
+
+module.exports = { initWebSocket, broadcast, broadcastToDashboard };
