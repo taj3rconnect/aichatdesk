@@ -107,4 +107,53 @@ router.get('/chats/:sessionId/info', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/dashboard/chats/:sessionId/attachments
+ * Retrieve all attachments from chat messages
+ */
+router.get('/chats/:sessionId/attachments', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Find chat by sessionId
+    const chat = await Chat.findOne({ sessionId }).lean();
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    // Find all messages with attachments
+    const messages = await Message.find({
+      chatId: chat._id,
+      attachments: { $exists: true, $ne: [] }
+    })
+      .select('attachments sender sentAt')
+      .sort({ sentAt: -1 }) // Newest first
+      .lean();
+
+    // Flatten attachments with metadata
+    const attachments = [];
+    messages.forEach(message => {
+      if (message.attachments && message.attachments.length > 0) {
+        message.attachments.forEach(attachment => {
+          attachments.push({
+            messageId: message._id,
+            filename: attachment.filename,
+            url: attachment.url,
+            type: attachment.type,
+            size: attachment.size,
+            sender: message.sender,
+            uploadedAt: message.sentAt
+          });
+        });
+      }
+    });
+
+    res.json(attachments);
+  } catch (err) {
+    console.error('Error fetching attachments:', err);
+    res.status(500).json({ error: 'Failed to fetch attachments' });
+  }
+});
+
 module.exports = router;

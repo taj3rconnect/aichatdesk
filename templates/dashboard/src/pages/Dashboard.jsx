@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ChatList from '../components/ChatList';
+import FilterBar from '../components/FilterBar';
+import UserInfoPanel from '../components/UserInfoPanel';
+import AttachmentsViewer from '../components/AttachmentsViewer';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
 
 const styles = {
   container: {
-    maxWidth: '1400px',
+    maxWidth: '1600px',
     margin: '0 auto'
   },
   header: {
@@ -20,23 +25,49 @@ const styles = {
     color: '#666',
     margin: 0
   },
-  section: {
+  layout: {
+    display: 'flex',
+    gap: '24px',
+    alignItems: 'flex-start'
+  },
+  mainContent: {
+    flex: '1 1 70%',
     backgroundColor: '#fff',
     borderRadius: '8px',
     padding: '24px',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+  },
+  sidebar: {
+    flex: '1 1 30%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
   }
 };
 
 function Dashboard() {
+  const [selectedChat, setSelectedChat] = useState(null);
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
         <h2 style={styles.title}>Active Chats</h2>
         <p style={styles.subtitle}>Monitor all ongoing chats in real-time</p>
       </div>
-      <div style={styles.section}>
-        <ChatList />
+
+      <div style={styles.layout}>
+        {/* Main chat list */}
+        <div style={styles.mainContent}>
+          <ChatList onChatSelect={setSelectedChat} />
+        </div>
+
+        {/* Sidebar with user info and attachments */}
+        {selectedChat && (
+          <div style={styles.sidebar}>
+            <UserInfoPanel sessionId={selectedChat.sessionId} />
+            <AttachmentsViewer sessionId={selectedChat.sessionId} />
+          </div>
+        )}
       </div>
     </div>
   );
