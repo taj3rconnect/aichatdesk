@@ -5,6 +5,7 @@ const fs = require('fs').promises;
 const { KnowledgeBase, Embedding } = require('../db/models');
 const { extractText } = require('../utils/textExtractor');
 const { chunkText } = require('../utils/chunker');
+const { generateEmbeddingsForChunks, deleteEmbeddings } = require('../utils/embeddings');
 
 // Configure multer for file uploads
 const upload = multer({
@@ -88,12 +89,26 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       content: extractedText,
       chunks: chunks.map(chunk => ({
         text: chunk.text,
-        embeddingId: null // Will be populated in Phase 2.2
+        embeddingId: null // Will be populated by generateEmbeddingsForChunks
       })),
       uploadedBy: req.body.uploadedBy || null, // Optional for Phase 4
       uploadedAt: new Date(),
       active: true
     });
+
+    // Generate embeddings for all chunks
+    let embeddingCount = 0;
+    try {
+      embeddingCount = await generateEmbeddingsForChunks(
+        knowledgeDoc._id,
+        knowledgeDoc.chunks
+      );
+      console.log(`Generated ${embeddingCount} embeddings for ${knowledgeDoc.filename}`);
+    } catch (error) {
+      console.error('Embedding generation failed:', error.message);
+      // Don't fail upload if embeddings fail - can retry later
+      // But log warning for admin visibility
+    }
 
     // Clean up uploaded file
     await fs.unlink(filePath);
@@ -104,8 +119,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       fileType: knowledgeDoc.fileType,
       fileSize: knowledgeDoc.fileSize,
       chunkCount: chunks.length,
+      embeddingCount: embeddingCount || 0,
       uploadedAt: knowledgeDoc.uploadedAt,
-      message: 'File uploaded and processed successfully'
+      message: 'Document uploaded and processed'
     });
   } catch (error) {
     // Clean up file on error
@@ -204,12 +220,12 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
+    // Delete all embeddings for this document
+    await deleteEmbeddings(req.params.id);
+
     // Soft delete the document
     document.active = false;
     await document.save();
-
-    // Delete related embeddings
-    await Embedding.deleteMany({ knowledgeBaseId: req.params.id });
 
     res.status(204).send();
   } catch (error) {
