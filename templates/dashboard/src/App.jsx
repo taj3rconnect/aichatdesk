@@ -3,11 +3,13 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import KnowledgeBase from './pages/KnowledgeBase';
+import EmbedCodeGenerator from './pages/EmbedCodeGenerator';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/analytics', label: 'Analytics', icon: '📈' },
   { path: '/knowledge', label: 'Knowledge Base', icon: '📚' },
+  { path: '/embed', label: 'Embed Code', icon: '🔗' },
   { path: '/settings', label: 'Settings', icon: '⚙️' }
 ];
 
@@ -147,6 +149,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/knowledge" element={<KnowledgeBase />} />
+              <Route path="/embed" element={<EmbedCodeGenerator />} />
               <Route path="/settings" element={<Placeholder title="Settings" />} />
             </Routes>
           </main>
