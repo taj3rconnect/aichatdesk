@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ChatList from '../components/ChatList';
 import FilterBar from '../components/FilterBar';
+import SearchBar from '../components/SearchBar';
 import UserInfoPanel from '../components/UserInfoPanel';
 import AttachmentsViewer from '../components/AttachmentsViewer';
 
@@ -73,6 +74,10 @@ function Dashboard() {
     fetchAgents();
   }, []);
 
+  const handleSearchResultSelect = (chat) => {
+    setSelectedChat(chat);
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -80,6 +85,7 @@ function Dashboard() {
         <p style={styles.subtitle}>Monitor all ongoing chats in real-time</p>
       </div>
 
+      <SearchBar onResultSelect={handleSearchResultSelect} />
       <FilterBar filters={filters} onFilterChange={setFilters} agents={agents} />
 
       <div style={styles.layout}>

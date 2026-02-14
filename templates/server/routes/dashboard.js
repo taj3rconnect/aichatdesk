@@ -156,4 +156,67 @@ router.get('/chats/:sessionId/attachments', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/dashboard/chats/search?q={query}
+ * Full-text search across chat messages, user names, emails, and summaries
+ */
+router.get('/chats/search', async (req, res) => {
+  try {
+    const { q: query } = req.query;
+
+    // Validate query
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({ error: 'Query must be at least 2 characters' });
+    }
+
+    const searchQuery = query.trim();
+    const regex = new RegExp(searchQuery, 'i'); // Case-insensitive regex
+
+    // Find message chatIds matching query content
+    const messageMatches = await Message.find({
+      content: { $regex: regex }
+    }).distinct('chatId');
+
+    // Find chats matching query directly or via messages
+    const chats = await Chat.find({
+      $or: [
+        { _id: { $in: messageMatches } },
+        { userName: { $regex: regex } },
+        { userEmail: { $regex: regex } },
+        { summary: { $regex: regex } }
+      ]
+    })
+      .populate('assignedAgent', 'name avatar')
+      .sort({ startedAt: -1 })
+      .limit(50)
+      .lean();
+
+    // Find matching messages for each chat to provide snippet
+    const enrichedChats = await Promise.all(chats.map(async (chat) => {
+      // Find first matching message for this chat
+      const matchingMessage = await Message.findOne({
+        chatId: chat._id,
+        content: { $regex: regex }
+      })
+        .select('content sender')
+        .sort({ sentAt: 1 })
+        .lean();
+
+      return {
+        ...chat,
+        matchSnippet: matchingMessage ? matchingMessage.content : null,
+        matchType: matchingMessage ? 'message' :
+                   (regex.test(chat.userName) ? 'userName' :
+                   (regex.test(chat.userEmail) ? 'userEmail' :
+                   (regex.test(chat.summary) ? 'summary' : 'unknown')))
+      };
+    }));
+
+    res.json(enrichedChats);
+  } catch (err) {
+    console.error('Error searching chats:', err);
+    res.status(500).json({ error: 'Failed to search chats' });
+  }
+});
+
 module.exports = router;
