@@ -1,10 +1,13 @@
 const { Server } = require('ws');
-const { Message } = require('./db/models');
+const { Message, Chat } = require('./db/models');
 
 let wss;
 
 // Track message counts per chat for sentiment analysis throttling
 const messageCountMap = new Map();
+
+// Track widget disconnect timers for auto-close (3 min timeout)
+const disconnectTimers = new Map(); // sessionId -> timer
 
 function initWebSocket(server) {
   wss = new Server({ server, path: '/ws' });
@@ -38,6 +41,18 @@ function initWebSocket(server) {
             // Dashboard client connected
             console.log('Dashboard client connected');
             ws.clientType = 'dashboard';
+            break;
+          case 'chat.join':
+            // Widget joined a chat session — cancel any pending disconnect timer
+            ws.clientType = 'widget';
+            if (message.sessionId) {
+              ws.sessionId = message.sessionId;
+              if (disconnectTimers.has(message.sessionId)) {
+                clearTimeout(disconnectTimers.get(message.sessionId));
+                disconnectTimers.delete(message.sessionId);
+                console.log(`[WS] Reconnected: ${message.sessionId} — cancelled close timer`);
+              }
+            }
             break;
           case 'chat.message':
             // Handle chat message (Phase 3)
@@ -87,6 +102,35 @@ function initWebSocket(server) {
 
     ws.on('close', () => {
       console.log(`WebSocket closed for ${clientIP}`);
+      // If widget disconnected, start 3-min auto-close timer
+      if (ws.clientType === 'widget' && ws.sessionId) {
+        const sid = ws.sessionId;
+        // Check if another widget client is still connected for this session
+        let stillConnected = false;
+        wss.clients.forEach(c => {
+          if (c !== ws && c.readyState === 1 && c.clientType === 'widget' && c.sessionId === sid) {
+            stillConnected = true;
+          }
+        });
+        if (!stillConnected) {
+          console.log(`[WS] Widget disconnected: ${sid} — closing chat immediately`);
+          // Close chat immediately when widget disconnects
+          (async () => {
+            try {
+              const chat = await Chat.findOne({ sessionId: sid, status: { $in: ['active', 'waiting'] } });
+              if (chat) {
+                chat.status = 'closed';
+                chat.endedAt = new Date();
+                await chat.save();
+                console.log(`[WS] Auto-closed chat: ${sid} (widget disconnected)`);
+                broadcastToDashboard('chat.closed', { sessionId: sid, chatId: chat._id });
+              }
+            } catch (err) {
+              console.error(`[WS] Auto-close error for ${sid}:`, err.message);
+            }
+          })();
+        }
+      }
     });
 
     ws.on('error', (err) => {

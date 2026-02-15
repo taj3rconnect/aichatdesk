@@ -1,7 +1,7 @@
 const express = require('express');
 const { Message, Chat, Agent, KnowledgeBase, Embedding } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
-const { broadcast } = require('../websocket');
+const { broadcast, broadcastToDashboard } = require('../websocket');
 const { sendChatTranscript } = require('../utils/email');
 const { generateEmbedding } = require('../utils/embeddings');
 const { cosineSimilarity } = require('../utils/vectorSearch');
@@ -37,10 +37,8 @@ async function learnFromAgentReply(chatId, agentAnswer) {
     // Generate embedding for the new Q&A
     const newEmbeddingVector = await generateEmbedding(qaText);
 
-    // Search existing agent-reply embeddings for duplicates
-    const existingEmbeddings = await Embedding.find({
-      'metadata.source': 'agent-reply'
-    }).lean();
+    // Search ALL existing embeddings for duplicates (not just agent-reply)
+    const existingEmbeddings = await Embedding.find({}).lean();
 
     let bestMatch = null;
     let bestSimilarity = 0;
@@ -121,6 +119,30 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'chatId and content are required' });
     }
 
+    // Profanity check on user messages — flag chat if detected
+    const PROFANITY_LIST = [
+      'fuck', 'shit', 'ass', 'bitch', 'damn', 'hell', 'crap', 'dick', 'cock',
+      'pussy', 'bastard', 'whore', 'slut', 'piss', 'cunt', 'twat', 'wanker',
+      'bollocks', 'arse', 'motherfucker', 'bullshit', 'asshole', 'dumbass',
+      'jackass', 'goddamn', 'stfu', 'wtf', 'lmfao', 'fk', 'fck', 'sht'
+    ];
+    const contentLower = content.toLowerCase().replace(/[^a-z\s]/g, '');
+    const words = contentLower.split(/\s+/);
+    const hasProfanity = words.some(w => PROFANITY_LIST.includes(w));
+    if (hasProfanity && (!sender || sender === 'user')) {
+      try {
+        const flagChat = await Chat.findById(chatId);
+        if (flagChat && !flagChat.metadata?.profanity) {
+          if (!flagChat.metadata) flagChat.metadata = {};
+          flagChat.metadata.profanity = true;
+          flagChat.markModified('metadata');
+          await flagChat.save();
+          console.log(`[Profanity] Flagged chat ${chatId}`);
+          broadcastToDashboard('chat.flagged', { chatId, sessionId: flagChat.sessionId, reason: 'profanity' });
+        }
+      } catch (e) { console.error('[Profanity] Flag error:', e.message); }
+    }
+
     // Determine sender type from request
     let resolvedSender = sender || 'user';
     let senderName = null;
@@ -159,12 +181,27 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Parse attachments — ensure always an array of objects
+    let attachments = req.body.attachments || [];
+    if (typeof attachments === 'string') {
+      try { attachments = JSON.parse(attachments); } catch { attachments = []; }
+    }
+    if (!Array.isArray(attachments)) attachments = [];
+    // Ensure each item is a plain object (not a string)
+    attachments = attachments.map(a => {
+      if (typeof a === 'string') {
+        try { return JSON.parse(a); } catch { return null; }
+      }
+      return a;
+    }).filter(Boolean);
+
     // Create message document
     const message = new Message({
       chatId,
       sender: resolvedSender,
       senderName,
       content,
+      attachments,
       isInternal: isInternal || false
     });
 
@@ -172,17 +209,26 @@ router.post('/', async (req, res) => {
 
     // Broadcast WebSocket event only if not internal
     if (!isInternal) {
+      const msgPayload = {
+        id: message._id,
+        chatId: message.chatId,
+        sender: message.sender,
+        senderName: message.senderName,
+        content: message.content,
+        attachments: message.attachments || [],
+        sentAt: message.sentAt
+      };
+      // Send to session clients (widget)
       broadcast({
         type: 'chat.message',
-        message: {
-          id: message._id,
-          chatId: message.chatId,
-          sender: message.sender,
-          senderName: message.senderName,
-          content: message.content,
-          sentAt: message.sentAt
-        }
+        sessionId: chat.sessionId,
+        message: msgPayload
       }, chat.sessionId);
+      // Also notify all dashboard clients so they refresh in real-time
+      broadcastToDashboard('chat.message', {
+        sessionId: chat.sessionId,
+        message: msgPayload
+      });
     }
 
     // If user sent a message, forward to Teams thread (fire-and-forget)
@@ -220,10 +266,15 @@ router.post('/', async (req, res) => {
  * POST /api/chat/:sessionId/end
  * End chat session and send transcript email
  */
-router.post('/chat/:sessionId/end', async (req, res) => {
+router.post('/chat/:sessionId/end', express.text({ type: '*/*' }), async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { rating, ratingComment } = req.body;
+    // Handle sendBeacon (text/plain body) and normal JSON
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const { rating, ratingComment } = body || {};
 
     // Find chat by session ID
     const chat = await Chat.findOne({ sessionId });
@@ -261,17 +312,18 @@ router.post('/chat/:sessionId/end', async (req, res) => {
       console.error('Failed to trigger transcript email:', err);
     }
 
-    // Broadcast WebSocket event
+    // Broadcast WebSocket event to session and dashboard
     try {
       broadcast({
         type: 'dashboard.chat.closed',
         sessionId,
         chatId: chat._id
       }, sessionId);
+      broadcastToDashboard('chat.closed', { sessionId, chatId: chat._id });
     } catch (err) {
-      // Log but don't fail
       console.error('WebSocket broadcast error:', err);
     }
+    console.log(`[Chat] Ended: ${sessionId}`);
 
     return res.status(200).json({
       success: true,

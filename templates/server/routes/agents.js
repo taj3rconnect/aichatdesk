@@ -65,7 +65,8 @@ router.post('/login', async (req, res) => {
       agent: {
         id: agent._id, email: agent.email, name: agent.name,
         role: sysRole, systemRole: sysRole, roles: agent.roles || [],
-        managerId: agent.managerId, status: agent.status
+        managerId: agent.managerId, status: agent.status,
+        office365Email: agent.office365Email || '', teamsEmail: agent.teamsEmail || ''
       }
     });
   } catch (err) {

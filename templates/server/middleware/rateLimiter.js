@@ -14,8 +14,12 @@ const limiter = rateLimit({
   keyGenerator: (req) => {
     return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
   },
-  // Skip rate limiting for health checks
-  skip: (req) => req.path === '/health' || req.path.startsWith('/test/')
+  // Skip rate limiting for health checks, test pages, and localhost
+  skip: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost';
+    return req.path === '/health' || req.path.startsWith('/test/') || isLocal;
+  }
 });
 
 // Stricter rate limiter for chat endpoints (to prevent spam)

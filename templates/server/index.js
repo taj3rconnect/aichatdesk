@@ -58,6 +58,7 @@ app.use('/api/analytics', require('./routes/analytics')); // Phase 6 - Analytics
 app.use('/api/canned-responses', require('./routes/canned-responses')); // Phase 6 - Canned responses
 app.use('/api/categories', require('./routes/categories')); // Workflow categories
 app.use('/api/calendar', require('./routes/calendar')); // Office 365 calendar scheduling
+app.use('/api/search', require('./routes/search')); // Unified search
 
 // Error handler
 app.use((err, req, res, next) => {

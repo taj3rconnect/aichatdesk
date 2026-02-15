@@ -410,4 +410,28 @@ router.patch('/:sessionId/category', async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/chat/:sessionId/notes
+ * Save agent notes for a chat
+ */
+router.put('/:sessionId/notes', authenticateAgent, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { notes } = req.body;
+
+    const chat = await Chat.findOne({ sessionId });
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    chat.agentNotes = notes || '';
+    await chat.save();
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Save notes error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

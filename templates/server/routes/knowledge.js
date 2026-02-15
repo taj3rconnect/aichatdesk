@@ -367,7 +367,10 @@ router.delete('/:id', async (req, res) => {
  * This enables self-learning from agent conversations
  */
 const { generateEmbedding } = require('../utils/embeddings');
+const { cosineSimilarity } = require('../utils/vectorSearch');
 const { authenticateAgent, requireRole } = require('../middleware/auth');
+
+const DUPLICATE_THRESHOLD = 0.85;
 
 router.post('/push', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
@@ -387,7 +390,59 @@ router.post('/push', authenticateAgent, requireRole('admin', 'manager'), async (
       text = answer;
     }
 
-    // Create a KB entry for tracking
+    // Generate embedding for duplicate check
+    const newEmbeddingVector = await generateEmbedding(text);
+
+    // Check ALL existing embeddings for duplicates
+    if (newEmbeddingVector) {
+      const existingEmbeddings = await Embedding.find({}).lean();
+
+      let bestMatch = null;
+      let bestSimilarity = 0;
+
+      for (const existing of existingEmbeddings) {
+        if (!existing.embedding || existing.embedding.length === 0) continue;
+        const similarity = cosineSimilarity(newEmbeddingVector, existing.embedding);
+        if (similarity > bestSimilarity) {
+          bestSimilarity = similarity;
+          bestMatch = existing;
+        }
+      }
+
+      // Duplicate found — merge new info into existing entry
+      if (bestMatch && bestSimilarity >= DUPLICATE_THRESHOLD) {
+        const existingKB = await KnowledgeBase.findById(bestMatch.knowledgeBaseId);
+        if (existingKB) {
+          const existingContent = existingKB.content || '';
+          const mergedContent = `${existingContent}\n\n---\n${text}`;
+
+          existingKB.content = mergedContent;
+          existingKB.chunks[0].text = mergedContent;
+          await existingKB.save();
+
+          // Re-generate embedding for the merged content
+          const mergedVector = await generateEmbedding(mergedContent);
+          await Embedding.findByIdAndUpdate(bestMatch._id, {
+            text: mergedContent,
+            embedding: mergedVector
+          });
+
+          console.log(`[Knowledge] Merged push into existing KB (similarity: ${bestSimilarity.toFixed(3)}): "${text.substring(0, 50)}..."`);
+          return res.status(200).json({
+            success: true,
+            id: existingKB._id,
+            merged: true,
+            similarity: bestSimilarity.toFixed(3),
+            textLength: mergedContent.length
+          });
+        } else {
+          // Orphan embedding — clean up
+          await Embedding.findByIdAndDelete(bestMatch._id);
+        }
+      }
+    }
+
+    // No duplicate — create new KB entry
     const kbEntry = await KnowledgeBase.create({
       filename: `chat-learning-${Date.now()}`,
       originalName: source || 'Chat Conversation',
@@ -398,20 +453,21 @@ router.post('/push', authenticateAgent, requireRole('admin', 'manager'), async (
       active: true
     });
 
-    // Generate embedding and store
-    const embedding = await generateEmbedding(text);
-    if (embedding) {
-      await Embedding.create({
+    // Store embedding
+    if (newEmbeddingVector) {
+      const embDoc = await Embedding.create({
         knowledgeBaseId: kbEntry._id,
         chunkIndex: 0,
         text: text,
-        embedding: embedding,
+        embedding: newEmbeddingVector,
         metadata: { source: 'chat-push', pushDate: new Date().toISOString() }
       });
+      kbEntry.chunks[0].embeddingId = embDoc._id;
+      await kbEntry.save();
     }
 
-    console.log(`[Knowledge] Pushed conversation snippet to RAG (${text.length} chars)`);
-    return res.status(201).json({ success: true, id: kbEntry._id, textLength: text.length });
+    console.log(`[Knowledge] Pushed new snippet to RAG (${text.length} chars)`);
+    return res.status(201).json({ success: true, id: kbEntry._id, merged: false, textLength: text.length });
   } catch (err) {
     console.error('[Knowledge] Push error:', err.message);
     return res.status(500).json({ error: 'Failed to push to knowledge base' });

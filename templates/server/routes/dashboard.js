@@ -17,8 +17,12 @@ const { getLocationFromIP } = require('../utils/geoip');
  */
 router.get('/chats', async (req, res) => {
   try {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const chats = await Chat.find({
-      status: { $in: ['active', 'waiting'] }
+      $or: [
+        { status: { $in: ['active', 'waiting'] } },
+        { status: 'closed', endedAt: { $gte: oneDayAgo } }
+      ]
     })
       .populate('assignedAgent', 'name avatar status')
       .sort({ startedAt: -1 })

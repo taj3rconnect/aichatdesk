@@ -21,7 +21,8 @@ const chatSchema = new mongoose.Schema({
   startedAt: { type: Date, default: Date.now },
   endedAt: Date,
   rating: Number,
-  ratingComment: String
+  ratingComment: String,
+  agentNotes: String
 }, { timestamps: true });
 
 const messageSchema = new mongoose.Schema({
@@ -29,12 +30,12 @@ const messageSchema = new mongoose.Schema({
   sender: { type: String, enum: ['user', 'ai', 'agent'], required: true },
   senderName: String,
   content: { type: String, required: true },
-  attachments: [{
+  attachments: [new mongoose.Schema({
     filename: String,
     url: String,
     type: String,
     size: Number
-  }],
+  }, { _id: false })],
   metadata: mongoose.Schema.Types.Mixed, // AI confidence, sources, etc.
   isInternal: { type: Boolean, default: false }, // Agent notes
   sentAt: { type: Date, default: Date.now }

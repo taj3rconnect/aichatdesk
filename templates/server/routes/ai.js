@@ -36,10 +36,18 @@ router.post('/query', async (req, res) => {
       return res.status(400).json({ error: 'chatId and message are required' });
     }
 
-    // 0. Check semantic response cache first
-    const cachedResult = await findCachedResponse(message);
+    // 0. Resolve category first (needed for cache key)
+    let categoryName = '';
+    const chatForCategory = await Chat.findById(chatId);
+    if (chatForCategory && chatForCategory.metadata?.categoryId) {
+      const cat = await WorkflowCategory.findById(chatForCategory.metadata.categoryId);
+      if (cat) categoryName = cat.name || '';
+    }
+
+    // Check semantic response cache (include category in key for different greetings per category)
+    const cacheKey = categoryName ? `[${categoryName}] ${message}` : message;
+    const cachedResult = await findCachedResponse(cacheKey);
     if (cachedResult) {
-      // Save cached AI message to database
       await Message.create({
         chatId,
         sender: 'ai',
@@ -74,8 +82,8 @@ router.post('/query', async (req, res) => {
 
     // 3. Search knowledge base for relevant context
     const ragResults = await searchKnowledgeBase(message, {
-      topK: 3,
-      minSimilarity: 0.5
+      topK: 8,
+      minSimilarity: 0.2
     });
 
     console.log(`[AI Query] Found ${ragResults.length} relevant knowledge base chunks`);
@@ -88,6 +96,8 @@ Important rules:
 - If no knowledge base context is provided or it doesn't answer the question, clearly say you don't have that information
 - NEVER include the user's personal information (their name, phone, email) in your responses
 - Do NOT greet the user by name or reference their personal details
+- When suggesting the user contact support, ALWAYS include the actual email: support@jobtalk.ai — NEVER say "contact support" without the email
+- Do NOT give vague redirect responses like "they can help you" — instead answer the question directly using the knowledge base, and only suggest email as a last resort
 - Only provide company contact details when the user specifically asks for contact info, pricing, or important inquiries — do NOT add contact info to every reply
 - Focus only on answering the question with relevant product/service information from the knowledge base
 
@@ -112,11 +122,10 @@ Format rules:
       systemPrompt += `\n\nThe user is currently on page: ${pageContext}`;
     }
 
-    // Inject workflow category prompt if chat has one
+    // Inject workflow category prompt if chat has one (reuse data from cache key resolution)
     let hasWorkflowCategory = false;
-    const chat = await Chat.findById(chatId);
-    if (chat && chat.metadata?.categoryId) {
-      const category = await WorkflowCategory.findById(chat.metadata.categoryId);
+    if (chatForCategory && chatForCategory.metadata?.categoryId) {
+      const category = await WorkflowCategory.findById(chatForCategory.metadata.categoryId);
       if (category && category.prompt) {
         systemPrompt = category.prompt + '\n\n' + systemPrompt;
         hasWorkflowCategory = true;
@@ -128,7 +137,10 @@ Format rules:
     const messages = [];
 
     // Include last 6 user/AI message pairs for conversation memory
-    const recentHistory = conversationHistory.slice(-12);
+    // Filter out file-only messages so AI doesn't try to respond to them
+    const recentHistory = conversationHistory
+      .filter(msg => !msg.content.match(/^\[Sent \d+ file\(s\)\]$/))
+      .slice(-12);
     recentHistory.forEach(msg => {
       messages.push({
         role: msg.sender === 'user' ? 'user' : 'assistant',
@@ -165,7 +177,10 @@ Format rules:
       const maxSimilarity = Math.max(...ragResults.map(r => r.similarity));
       if (maxSimilarity > 0.7) {
         confidence = 0.9;
-      } else if (maxSimilarity >= 0.5) {
+      } else if (maxSimilarity >= 0.4) {
+        confidence = Math.max(confidence, 0.8);
+      } else if (ragResults.length >= 3) {
+        // Multiple low-similarity matches still provide useful context
         confidence = Math.max(confidence, 0.7);
       }
     }
@@ -217,7 +232,7 @@ Format rules:
     // Cache the response for future similar questions (fire-and-forget)
     if (confidence >= 0.7) {
       cacheResponse(
-        message, null, responseText, confidence,
+        cacheKey, null, responseText, confidence,
         ragResults.map(r => r.filename)
       ).catch(err => console.error('[Cache] Store failed:', err.message));
     }
