@@ -425,6 +425,7 @@
 
   <div class="header">
     <h1 style="cursor:pointer;" onclick="switchTab('chats')">AIChatDesk Agent Dashboard</h1>
+    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.02 <span style="margin-left: 10px;">02/14 -- 23:06</span></span>
     <div class="agent-info">
       <span><span class="status-dot" id="agent-dot"></span> <span id="agent-name" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;" onclick="openProfileModal()" title="My Profile">Agent</span></span>
       <span style="color: #666;">|</span>
@@ -473,11 +474,12 @@
     </div>
 
     <!-- Center: Chat Panels Container (split screen) -->
-    <div class="center" id="chat-panels-container">
+    <div class="center" id="chat-panels-container" style="position:relative;">
+      <button id="close-all-btn" onclick="closeAllPanels()" title="Close all chat panels" style="display:none; position:absolute; top:6px; right:10px; z-index:10; background:#e74c3c; color:#fff; border:none; border-radius:4px; padding:3px 10px; font-size:11px; cursor:pointer; opacity:0.85; transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.85'">&#x2715; Close All</button>
       <div id="chat-view-empty" class="empty-state">
         <div style="font-size: 40px; opacity: 0.3;">&#x1F4AC;</div>
         <div>Select a chat from the sidebar</div>
-        <div style="font-size: 12px; color: #555;">Click to open, click another to add to split view (up to 4)</div>
+        <div style="font-size: 12px; color: #555;">Click to open, click another to add to split view (up to 6)</div>
       </div>
     </div>
 
@@ -844,6 +846,23 @@
   </div>
 
   <!-- Lightbox overlay for image attachments -->
+  <!-- Notes Modal -->
+  <div id="notes-modal" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,0.7); align-items:center; justify-content:center;" onclick="if(event.target===this)closeNotesModal()">
+    <div style="background:#1a1a2e; border:1px solid #4a5568; border-radius:8px; width:450px; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
+      <div style="padding:12px 16px; border-bottom:1px solid #2a2a4a; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; color:#f59e0b;">&#x1F4DD; Agent Notes</span>
+        <button onclick="closeNotesModal()" style="background:none; border:none; color:#888; font-size:18px; cursor:pointer;">&times;</button>
+      </div>
+      <div style="padding:16px;">
+        <textarea id="notes-textarea" placeholder="Write your notes about this chat..." style="width:100%; height:150px; background:#0d1117; color:#e2e8f0; border:1px solid #4a5568; border-radius:6px; padding:10px; font-size:13px; resize:vertical; font-family:inherit; box-sizing:border-box;"></textarea>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+          <button onclick="closeNotesModal()" style="background:#374151; color:#e2e8f0; border:none; border-radius:4px; padding:6px 14px; cursor:pointer; font-size:12px;">Cancel</button>
+          <button onclick="saveNotes()" style="background:#f59e0b; color:#000; border:none; border-radius:4px; padding:6px 14px; cursor:pointer; font-size:12px; font-weight:600;">Save Notes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="lightbox" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:10000; cursor:pointer; align-items:center; justify-content:center;" onclick="this.style.display='none'">
     <img id="lightbox-img" style="max-width:90vw; max-height:90vh; border-radius:8px;">
   </div>
@@ -953,7 +972,7 @@
 
     // Multi-chat split screen state
     let activeChats = []; // Array of { sessionId, chatId, mode, userName, userEmail }
-    const MAX_SPLIT = 4;
+    const MAX_SPLIT = 6;
 
     function log(msg) {
       const el = document.getElementById('log');
@@ -1150,18 +1169,19 @@
         const tktIcon = ticketIcons[chat.ticketType] || '';
         const isActive = chat.status === 'active' || chat.status === 'waiting';
         const statusDot = isActive
-          ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#17a34a;margin-right:6px;flex-shrink:0;" title="Active"></span>'
-          : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#d1d5db;margin-right:6px;flex-shrink:0;" title="Completed"></span>';
-        const statusLabel = isActive ? 'Active' : 'Completed';
+          ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#17a34a;margin-right:6px;flex-shrink:0;" title="Active"></span>'
+          : '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6b7280;margin-right:6px;flex-shrink:0;font-size:7px;text-align:center;line-height:10px;color:#fff;" title="Done">&#x2713;</span>';
+        const statusLabel = isActive ? 'Active' : 'Done';
         return `
           <div class="chat-item ${isSelected ? 'active' : ''} ${isInSplit && !isSelected ? 'in-split' : ''}" onclick="selectChat('${chat.sessionId}')" style="${isInSplit && !isSelected ? 'border-left: 3px solid #00b894;' : ''}">
-            <div class="name" style="display:flex;align-items:center;">${statusDot}${tktIcon ? tktIcon + ' ' : ''}${chat.userName || 'Anonymous'} <span style="margin-left:auto;font-size:10px;color:${isActive ? '#17a34a' : '#8c9bab'};font-weight:600;">${statusLabel}</span></div>
+            <div class="name" style="display:flex;align-items:center;">${statusDot}${tktIcon ? tktIcon + ' ' : ''}${chat.userName || 'Anonymous'}${chat.metadata?.profanity ? ' <span style="background:#dc2626;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:4px;" title="Profanity detected">XX</span>' : ''} <span style="margin-left:auto;font-size:10px;color:${isActive ? '#17a34a' : '#8c9bab'};font-weight:600;">${statusLabel}</span></div>
             <div class="preview" style="color:#0061ff; font-size:11px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis;" title="${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}">${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}</div>
             <div class="preview">${chat.summary || chat.category || 'New conversation'}</div>
             <div class="meta">
               <span class="priority-badge ${priority}">${priority}</span>
               <span class="mode-tag ${mode}">${mode.toUpperCase()}</span>
               <span>${chat.waitTime || 0}m</span>
+              <button class="notes-btn" onclick="event.stopPropagation(); openNotesModal('${chat.sessionId}')" title="${chat.agentNotes ? 'View notes' : 'Add notes'}" style="background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; color:${chat.agentNotes ? '#f59e0b' : '#555'};">${chat.agentNotes ? '&#x1F4DD;' : '&#x2795;'}</button>
               <button class="delete-btn" onclick="event.stopPropagation(); deleteChat('${chat.sessionId}', '${(chat.userName || 'Anonymous').replace(/'/g, "\\'")}')" title="Delete chat">&times;</button>
             </div>
           </div>
@@ -1254,6 +1274,8 @@
     function renderChatPanels() {
       const container = document.getElementById('chat-panels-container');
       const emptyState = document.getElementById('chat-view-empty');
+      const closeAllBtn = document.getElementById('close-all-btn');
+      closeAllBtn.style.display = activeChats.length > 1 ? '' : 'none';
 
       if (activeChats.length === 0) {
         emptyState.style.display = 'flex';
@@ -1267,17 +1289,18 @@
       emptyState.style.display = 'none';
 
       // Set grid layout
+      container.style.display = 'grid';
       if (activeChats.length === 1) {
-        container.style.display = 'grid';
         container.style.gridTemplateColumns = '1fr';
         container.style.gridTemplateRows = '1fr';
-      } else if (activeChats.length <= 3) {
-        container.style.display = 'grid';
-        container.style.gridTemplateColumns = `repeat(${activeChats.length}, 1fr)`;
-        container.style.gridTemplateRows = '1fr';
-      } else {
-        container.style.display = 'grid';
+      } else if (activeChats.length === 2) {
         container.style.gridTemplateColumns = '1fr 1fr';
+        container.style.gridTemplateRows = '1fr';
+      } else if (activeChats.length <= 4) {
+        container.style.gridTemplateColumns = '1fr 1fr';
+        container.style.gridTemplateRows = '1fr 1fr';
+      } else {
+        container.style.gridTemplateColumns = '1fr 1fr 1fr';
         container.style.gridTemplateRows = '1fr 1fr';
       }
 
@@ -1389,6 +1412,8 @@
               const name = att.filename || att.originalName || 'file';
               if (att.type && att.type.startsWith('image/')) {
                 attachHtml += `<div style="margin-top:6px;"><img src="${url}" style="max-width:150px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${url}')"></div>`;
+              } else if (att.type === 'text/plain' && name.startsWith('system-info')) {
+                attachHtml += `<div style="margin-top:4px;"><button onclick="openTextPopup('${url}', '${escapeHtml(name)}')" style="background:#2d3748; color:#60a5fa; border:1px solid #4a5568; border-radius:4px; padding:2px 8px; font-size:11px; cursor:pointer;">&#x1F4BB; System Info</button></div>`;
               } else if (att.type === 'application/pdf') {
                 attachHtml += `<div style="margin-top:6px;"><a href="${url}" target="_blank" style="color:#6C5CE7;">&#x1F4C4; ${escapeHtml(name)}</a></div>`;
               } else {
@@ -1404,6 +1429,13 @@
         }).join('');
         el.scrollTop = el.scrollHeight;
       } catch (err) { log('Load messages error: ' + err.message); }
+    }
+
+    function closeAllPanels() {
+      activeChats = [];
+      selectedChat = null;
+      renderChatPanels();
+      renderChatList();
     }
 
     function closePanel(idx) {
@@ -1494,6 +1526,27 @@
     function openLightbox(url) {
       document.getElementById('lightbox-img').src = url;
       document.getElementById('lightbox').style.display = 'flex';
+    }
+
+    async function openTextPopup(url, title) {
+      try {
+        const res = await fetch(url);
+        const text = await res.text();
+        const popup = document.createElement('div');
+        popup.style.cssText = 'position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center;';
+        popup.onclick = (e) => { if (e.target === popup) popup.remove(); };
+        popup.innerHTML = `
+          <div style="background:#1a1a2e; border:1px solid #4a5568; border-radius:8px; width:600px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
+            <div style="padding:12px 16px; border-bottom:1px solid #2a2a4a; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:600; color:#60a5fa;">&#x1F4BB; ${escapeHtml(title)}</span>
+              <button onclick="this.closest('[style*=fixed]').remove()" style="background:none; border:none; color:#888; font-size:18px; cursor:pointer;">&times;</button>
+            </div>
+            <pre style="margin:0; padding:16px; overflow:auto; flex:1; font-size:12px; line-height:1.6; color:#e2e8f0; white-space:pre-wrap; font-family:'Cascadia Code','Fira Code',monospace;">${escapeHtml(text)}</pre>
+          </div>`;
+        document.body.appendChild(popup);
+      } catch (err) {
+        alert('Failed to load file: ' + err.message);
+      }
     }
 
     function escapeHtml(text) {
@@ -1594,8 +1647,43 @@
       } catch (err) { log(`Note error: ${err.message}`); }
     }
 
+    let notesSessionId = null;
+
+    function openNotesModal(sessionId) {
+      notesSessionId = sessionId;
+      const chat = chatList.find(c => c.sessionId === sessionId);
+      const textarea = document.getElementById('notes-textarea');
+      textarea.value = chat?.agentNotes || '';
+      document.getElementById('notes-modal').style.display = 'flex';
+      textarea.focus();
+    }
+
+    function closeNotesModal() {
+      document.getElementById('notes-modal').style.display = 'none';
+      notesSessionId = null;
+    }
+
+    async function saveNotes() {
+      if (!notesSessionId) return;
+      const notes = document.getElementById('notes-textarea').value.trim();
+      try {
+        const res = await fetch(`${API}/api/chat/${notesSessionId}/notes`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const chat = chatList.find(c => c.sessionId === notesSessionId);
+          if (chat) chat.agentNotes = notes;
+          renderChatList();
+          closeNotesModal();
+          log('Notes saved');
+        }
+      } catch (err) { log('Save notes error: ' + err.message); }
+    }
+
     async function deleteChat(sessionId, userName) {
-      if (!confirm(`Delete chat with ${userName}? This will permanently remove all messages.`)) return;
       try {
         const res = await fetch(`${API}/api/chat/${sessionId}`, {
           method: 'DELETE',
