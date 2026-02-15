@@ -1,3 +1,11 @@
+/**
+ * @file routing — Agent assignment and chat routing engine
+ * @description Routes incoming chats to the best available agent based on category specialization
+ * and current workload (least-busy-first). Supports manual reassignment between agents.
+ * Falls back to any online agent when no category specialist is available.
+ * @module utils/routing
+ */
+
 const { Agent, Chat } = require('../db/models');
 
 /**

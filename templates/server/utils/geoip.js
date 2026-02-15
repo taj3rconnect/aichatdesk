@@ -1,10 +1,9 @@
 /**
- * GeoIP Lookup Utility
- *
- * Provides IP address to location lookup using free ip-api.com service.
- * Includes in-memory caching (1-hour TTL) and private IP detection.
- *
- * Rate limit: 45 requests/minute (free tier, no API key needed)
+ * @file geoip — IP geolocation lookup with in-memory caching
+ * @description Resolves IP addresses to geographic location (country, region, city, timezone)
+ * using the free ip-api.com service. Features 1-hour TTL in-memory caching and private/local
+ * IP detection. Rate limited to 45 requests/minute on the free tier (no API key needed).
+ * @module utils/geoip
  */
 
 const https = require('https');

@@ -1,9 +1,22 @@
+/**
+ * @file email — SendGrid email notifications for chat events
+ * @description Sends HTML email notifications via SendGrid: new chat alerts to support staff
+ * and post-chat transcript delivery to customers. Includes styled HTML templates with
+ * chat metadata, conversation history, ratings, and attachment links. Fails silently
+ * when SendGrid is not configured.
+ * @module utils/email
+ */
+
 const sgMail = require('@sendgrid/mail');
 const { Chat, Message } = require('../db/models');
 
 // Lazy initialize SendGrid client
 let sgInitialized = false;
 
+/**
+ * Lazy-initialize the SendGrid client with the API key from environment.
+ * @returns {boolean} True if SendGrid is ready to send, false otherwise
+ */
 function initializeSendGrid() {
   if (sgInitialized) return true;
 

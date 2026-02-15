@@ -1,3 +1,11 @@
+/**
+ * @file embeddings — OpenAI embedding generation for knowledge base chunks
+ * @description Generates vector embeddings using OpenAI's text-embedding API for use in
+ * semantic search (RAG). Supports single-text and batch embedding with rate-limit-aware
+ * batching. Links generated embeddings back to their KnowledgeBase document chunks.
+ * @module utils/embeddings
+ */
+
 const OpenAI = require('openai');
 const { Embedding, KnowledgeBase } = require('../db/models');
 

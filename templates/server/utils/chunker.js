@@ -1,9 +1,18 @@
 /**
- * Chunk text into semantic segments with overlap for RAG
+ * @file chunker — Text chunking with overlap for RAG embedding pipelines
+ * @description Splits text into semantically meaningful segments for embedding generation.
+ * Respects paragraph, sentence, and word boundaries with configurable overlap to preserve
+ * context across chunk boundaries. Used during knowledge base document ingestion.
+ * @module utils/chunker
+ */
+
+/**
+ * Chunk text into semantic segments with overlap for RAG.
+ * Splits on paragraph boundaries first, then sentences, then words as fallback.
  * @param {string} text - Text to chunk
  * @param {object} options - Chunking options
- * @param {number} options.maxChunkSize - Maximum characters per chunk
- * @param {number} options.overlap - Characters to overlap between chunks
+ * @param {number} [options.maxChunkSize=1000] - Maximum characters per chunk
+ * @param {number} [options.overlap=200] - Characters to overlap between chunks
  * @returns {Array<{text: string, index: number}>} Array of indexed chunks
  */
 function chunkText(text, options = {}) {

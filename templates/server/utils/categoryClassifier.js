@@ -1,6 +1,9 @@
 /**
- * Chat Categorization Utility
- * Classifies chats into categories using keyword matching
+ * @file categoryClassifier — Keyword-based chat category classification
+ * @description Classifies chat sessions into categories (billing, technical, feature_request,
+ * bug_report, general) by counting keyword matches in user messages. Uses priority-ordered
+ * tie-breaking and requires a minimum of 2 keyword matches to assign a non-general category.
+ * @module utils/categoryClassifier
  */
 
 /**

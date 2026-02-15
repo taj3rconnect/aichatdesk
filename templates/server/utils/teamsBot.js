@@ -1,8 +1,11 @@
 /**
- * Microsoft Teams Bot Integration
- *
- * Two-way messaging: notifications to Teams channel + agent replies from Teams.
- * Only active when MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD are set.
+ * @file teamsBot — Microsoft Teams bot for two-way agent/customer messaging
+ * @description Integrates with Microsoft Bot Framework to enable real-time chat management
+ * from Teams. Sends Adaptive Card notifications to a Teams channel when new chats arrive,
+ * forwards customer messages to threads, and allows agents to reply, take over, return to AI,
+ * or close chats directly from Teams. Only active when MICROSOFT_APP_ID and
+ * MICROSOFT_APP_PASSWORD environment variables are set.
+ * @module utils/teamsBot
  */
 
 const { BotFrameworkAdapter, TurnContext, CardFactory, MessageFactory } = require('botbuilder');
@@ -394,6 +397,11 @@ async function getTeamsUserEmail(activity) {
   return null;
 }
 
+/**
+ * Escape special regex characters in a string for safe use in RegExp constructor.
+ * @param {string} str - Raw string to escape
+ * @returns {string} Escaped string safe for regex
+ */
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -1,3 +1,11 @@
+/**
+ * @file textExtractor — Multi-format text extraction for knowledge base ingestion
+ * @description Extracts plain text from uploaded files in various formats: PDF, TXT, Markdown,
+ * DOCX, JSON, CSV, and HTML. Normalizes whitespace and removes markup. Used during
+ * knowledge base document upload before chunking and embedding.
+ * @module utils/textExtractor
+ */
+
 const fs = require('fs').promises;
 const path = require('path');
 const pdf = require('pdf-parse');

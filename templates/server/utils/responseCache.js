@@ -1,3 +1,11 @@
+/**
+ * @file responseCache — Semantic response caching for AI chat answers
+ * @description Caches AI responses with their question embeddings in MongoDB. On new questions,
+ * computes cosine similarity against cached entries and returns a hit if above the similarity
+ * threshold (0.75). Reduces redundant OpenAI API calls for semantically equivalent questions.
+ * @module utils/responseCache
+ */
+
 const { ResponseCache } = require('../db/models');
 const { generateEmbedding } = require('./embeddings');
 const { cosineSimilarity } = require('./vectorSearch');

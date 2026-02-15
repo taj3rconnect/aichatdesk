@@ -1,3 +1,12 @@
+/**
+ * @file vectorSearch — Semantic search over knowledge base embeddings
+ * @description Performs vector similarity search by embedding a query via OpenAI,
+ * computing cosine similarity against all stored embeddings, and returning the
+ * top-K results above a configurable similarity threshold. Used by the AI chat
+ * pipeline to retrieve relevant knowledge base context (RAG).
+ * @module utils/vectorSearch
+ */
+
 const { Embedding, KnowledgeBase } = require('../db/models');
 const { generateEmbedding } = require('./embeddings');
 

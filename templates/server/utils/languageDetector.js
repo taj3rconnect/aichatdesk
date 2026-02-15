@@ -1,6 +1,9 @@
 /**
- * Language Detection Utility
- * Detects language from user text using character sets and common words
+ * @file languageDetector — Heuristic language detection from user text
+ * @description Detects the language of user messages using Unicode character set matching
+ * (CJK, Arabic, Cyrillic, Korean) and Latin-alphabet common word scoring (Spanish, French,
+ * German, Portuguese). Defaults to English when no strong signal is detected.
+ * @module utils/languageDetector
  */
 
 /**

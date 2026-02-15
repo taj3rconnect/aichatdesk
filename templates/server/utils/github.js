@@ -1,6 +1,10 @@
 /**
- * GitHub Issue Creation Utility
- * Creates GitHub issues from chat tickets (bug reports, feature requests, etc.)
+ * @file github — Automatic GitHub issue creation from chat tickets
+ * @description Creates GitHub issues via the REST API when customers submit bug reports,
+ * feature requests, or support tickets through the chat widget. Maps ticket types to
+ * GitHub labels and formats chat metadata into a structured issue body. Silently skips
+ * when GITHUB_REPO or GITHUB_TOKEN environment variables are not configured.
+ * @module utils/github
  */
 
 const LABEL_MAP = {

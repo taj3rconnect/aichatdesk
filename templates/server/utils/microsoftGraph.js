@@ -1,15 +1,35 @@
+/**
+ * @file microsoftGraph — Office 365 calendar integration via Microsoft Graph API
+ * @description Acquires OAuth tokens using MSAL client credentials flow, initializes a Graph API
+ * client, and provides calendar operations: checking availability across business days and
+ * creating booking events with Teams meeting links. Slot duration and business hours are
+ * configurable via module constants. Calendar email is resolved from DB settings with
+ * env var fallback.
+ * @module utils/microsoftGraph
+ */
+
 const msal = require('@azure/msal-node');
 const { Client } = require('@microsoft/microsoft-graph-client');
 
+/** @type {msal.ConfidentialClientApplication|null} Cached MSAL client instance */
 let msalClient = null;
+/** @type {import('@microsoft/microsoft-graph-client').Client|null} */
 let graphClient = null;
 
+/** @type {string} Calendar owner email — resolved from DB setting or OFFICE365_CALENDAR_EMAIL env var */
 let CALENDAR_EMAIL = process.env.OFFICE365_CALENDAR_EMAIL || '';
-const SLOT_DURATION = 30; // minutes
-const BUSINESS_START = 9; // 9 AM
-const BUSINESS_END = 17; // 5 PM
+/** @type {number} Duration of each bookable slot in minutes */
+const SLOT_DURATION = 30;
+/** @type {number} Business hours start (24h format) */
+const BUSINESS_START = 9;
+/** @type {number} Business hours end (24h format) */
+const BUSINESS_END = 17;
 
-// Load calendar email from DB setting (called on first use)
+/**
+ * Load the calendar email from the DB Setting collection on first use.
+ * Falls back to the OFFICE365_CALENDAR_EMAIL env var if no DB setting exists.
+ * @returns {Promise<string>} The resolved calendar email address
+ */
 let _calEmailLoaded = false;
 async function loadCalendarEmail() {
   if (_calEmailLoaded) return CALENDAR_EMAIL;
@@ -22,6 +42,11 @@ async function loadCalendarEmail() {
   return CALENDAR_EMAIL;
 }
 
+/**
+ * Check whether all required Microsoft Graph environment variables are set.
+ * Required: MICROSOFT_GRAPH_CLIENT_ID, MICROSOFT_GRAPH_CLIENT_SECRET, MICROSOFT_GRAPH_TENANT_ID.
+ * @returns {boolean} True if Graph API credentials are fully configured
+ */
 function isConfigured() {
   return !!(
     process.env.MICROSOFT_GRAPH_CLIENT_ID &&
@@ -30,9 +55,17 @@ function isConfigured() {
   );
 }
 
-// Reset cached email so next call re-reads from DB
+/**
+ * Reset the cached calendar email so the next call to loadCalendarEmail() re-reads from DB.
+ * Useful after admin updates the calendarEmail setting.
+ */
 function resetCalendarEmailCache() { _calEmailLoaded = false; }
 
+/**
+ * Get or create the singleton MSAL ConfidentialClientApplication.
+ * Uses client credentials flow with tenant-specific authority.
+ * @returns {msal.ConfidentialClientApplication} The MSAL client instance
+ */
 function getMsalClient() {
   if (!msalClient) {
     msalClient = new msal.ConfidentialClientApplication({
@@ -46,6 +79,12 @@ function getMsalClient() {
   return msalClient;
 }
 
+/**
+ * Acquire an OAuth token via MSAL and initialize a Microsoft Graph client.
+ * Creates a new client on each call (token may have refreshed).
+ * @returns {Promise<import('@microsoft/microsoft-graph-client').Client>} Authenticated Graph client
+ * @throws {Error} If Microsoft Graph credentials are not configured
+ */
 async function getGraphClient() {
   if (!isConfigured()) throw new Error('Microsoft Graph not configured');
 
@@ -62,7 +101,11 @@ async function getGraphClient() {
 }
 
 /**
- * Get next N business days starting from a date
+ * Get the next N business days (Mon-Fri) starting from a given date.
+ * Skips weekends (Saturday=6, Sunday=0).
+ * @param {Date|string} startDate - The date to start counting from
+ * @param {number} count - Number of business days to collect
+ * @returns {Date[]} Array of Date objects representing business days (time set to midnight)
  */
 function getBusinessDays(startDate, count) {
   const days = [];
@@ -173,7 +216,19 @@ async function getAvailableSlots(fromDate, daysCount = 3) {
 }
 
 /**
- * Create a calendar booking
+ * Create a calendar event on the configured Office 365 calendar with a Teams meeting link.
+ * Adds the customer as a required attendee and includes booking metadata in the event body.
+ * @param {Object} params - Booking parameters
+ * @param {string} params.start - Event start time (ISO 8601 string, UTC)
+ * @param {string} params.end - Event end time (ISO 8601 string, UTC)
+ * @param {string} params.customerName - Customer's display name
+ * @param {string} params.customerEmail - Customer's email (added as attendee)
+ * @param {string} params.meetingType - Type of meeting: 'call', 'demo', or 'meeting'
+ * @param {string} [params.notes] - Optional notes to include in the event body
+ * @param {string} [params.phone] - Optional customer phone number
+ * @param {string} [params.company] - Optional customer company name
+ * @returns {Promise<{eventId: string, meetingLink: string|null, subject: string, start: string, end: string}>}
+ * @throws {Error} If calendar email is not configured or Graph API call fails
  */
 async function createBooking({ start, end, customerName, customerEmail, meetingType, notes, phone, company }) {
   await loadCalendarEmail();
