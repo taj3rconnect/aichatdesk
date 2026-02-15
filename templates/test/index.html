@@ -401,6 +401,7 @@
         <button class="header-icon-btn" onclick="openCalendarPopup()" data-tooltip="Schedule Call">
           <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>
         </button>
+        <button onclick="bookDemo()" style="background:#f59e0b;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.3px;white-space:nowrap;">Book Demo</button>
         <button class="close-btn" onclick="closeAndEndChat()">&times;</button>
       </div>
     </div>
@@ -492,9 +493,20 @@
           </button>
         </div>
       </div>
+      <!-- Step 1b: Contact info (phone & company) -->
+      <div id="cal-step-contact" style="display:none;">
+        <button class="cal-back-btn" onclick="calGoBack('type')">&larr; Back</button>
+        <div class="cal-title">Your Details</div>
+        <div class="cal-subtitle">So we can reach you</div>
+        <div style="padding:8px 0;">
+          <input type="tel" id="cal-phone" placeholder="Phone number" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+          <input type="text" id="cal-company" placeholder="Company name" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+        <button class="cal-confirm" onclick="calContactNext()" style="margin-top:12px;">Continue</button>
+      </div>
       <!-- Step 2: Select date & time -->
       <div id="cal-step-slots" style="display:none;">
-        <button class="cal-back-btn" onclick="calGoBack('type')">&larr; Back</button>
+        <button class="cal-back-btn" onclick="calGoBack('contact')">&larr; Back</button>
         <div class="cal-title" id="cal-slots-title">Pick a time</div>
         <div class="cal-date-tabs" id="cal-date-tabs"></div>
         <div id="cal-slots-container">
@@ -992,7 +1004,11 @@
         return;
       }
       el.classList.add('active');
+      // Filter out system-info TXT from preview (still uploaded)
+      const visibleFiles = pendingFiles.filter(f => !f.name.startsWith('system-info'));
+      if (visibleFiles.length === 0) { el.classList.remove('active'); el.innerHTML = ''; return; }
       el.innerHTML = pendingFiles.map((f, i) => {
+        if (f.name.startsWith('system-info')) return '';
         const isImg = f.type.startsWith('image/');
         if (isImg) {
           const url = URL.createObjectURL(f);
@@ -1534,9 +1550,12 @@
       calMeetingType = null;
       calSelectedSlot = null;
       document.getElementById('cal-step-type').style.display = '';
+      document.getElementById('cal-step-contact').style.display = 'none';
       document.getElementById('cal-step-slots').style.display = 'none';
       document.getElementById('cal-step-confirm').style.display = 'none';
       document.getElementById('cal-step-success').style.display = 'none';
+      document.getElementById('cal-phone').value = '';
+      document.getElementById('cal-company').value = '';
       document.querySelectorAll('.cal-type-btn').forEach(b => b.classList.remove('selected'));
       document.getElementById('calendar-popup').classList.add('open');
     }
@@ -1548,13 +1567,32 @@
     function selectMeetingType(type) {
       calMeetingType = type;
       document.querySelectorAll('.cal-type-btn').forEach(b => b.classList.remove('selected'));
-      event.currentTarget.classList.add('selected');
-      // Move to step 2
-      const labels = { call: 'Call', demo: 'Demo', meeting: 'Meeting' };
-      document.getElementById('cal-slots-title').textContent = `Pick a time for ${labels[type]}`;
+      if (event && event.currentTarget) event.currentTarget.classList.add('selected');
+      // Move to contact info step
       document.getElementById('cal-step-type').style.display = 'none';
-      document.getElementById('cal-step-slots').style.display = '';
+      document.getElementById('cal-step-contact').style.display = 'block';
+    }
+
+    function calContactNext() {
+      const phone = document.getElementById('cal-phone').value.trim();
+      const company = document.getElementById('cal-company').value.trim();
+      if (!phone) { document.getElementById('cal-phone').focus(); return; }
+      if (!company) { document.getElementById('cal-company').focus(); return; }
+      const labels = { call: 'Call', demo: 'Demo', meeting: 'Meeting' };
+      document.getElementById('cal-slots-title').textContent = `Pick a time for ${labels[calMeetingType]}`;
+      document.getElementById('cal-step-contact').style.display = 'none';
+      document.getElementById('cal-step-slots').style.display = 'block';
       loadCalendarSlots();
+    }
+
+    function bookDemo() {
+      openCalendarPopup();
+      // Override: skip type, show contact step for demo
+      setTimeout(() => {
+        calMeetingType = 'demo';
+        document.getElementById('cal-step-type').style.display = 'none';
+        document.getElementById('cal-step-contact').style.display = 'block';
+      }, 50);
     }
 
     async function loadCalendarSlots(fromDate) {
@@ -1633,12 +1671,16 @@
 
     function calGoBack(step) {
       if (step === 'type') {
+        document.getElementById('cal-step-contact').style.display = 'none';
         document.getElementById('cal-step-slots').style.display = 'none';
-        document.getElementById('cal-step-type').style.display = '';
+        document.getElementById('cal-step-type').style.display = 'block';
         calSelectedSlot = null;
+      } else if (step === 'contact') {
+        document.getElementById('cal-step-slots').style.display = 'none';
+        document.getElementById('cal-step-contact').style.display = 'block';
       } else if (step === 'slots') {
         document.getElementById('cal-step-confirm').style.display = 'none';
-        document.getElementById('cal-step-slots').style.display = '';
+        document.getElementById('cal-step-slots').style.display = 'block';
       }
     }
 
@@ -1658,6 +1700,8 @@
             customerEmail: userEmail,
             meetingType: calMeetingType,
             sessionId: sessionId,
+            phone: document.getElementById('cal-phone').value.trim(),
+            company: document.getElementById('cal-company').value.trim(),
             notes: `Booked via AIChatDesk widget`
           })
         });

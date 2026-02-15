@@ -4,19 +4,34 @@ const { Client } = require('@microsoft/microsoft-graph-client');
 let msalClient = null;
 let graphClient = null;
 
-const CALENDAR_EMAIL = process.env.OFFICE365_CALENDAR_EMAIL || '';
+let CALENDAR_EMAIL = process.env.OFFICE365_CALENDAR_EMAIL || '';
 const SLOT_DURATION = 30; // minutes
 const BUSINESS_START = 9; // 9 AM
 const BUSINESS_END = 17; // 5 PM
+
+// Load calendar email from DB setting (called on first use)
+let _calEmailLoaded = false;
+async function loadCalendarEmail() {
+  if (_calEmailLoaded) return CALENDAR_EMAIL;
+  try {
+    const { Setting } = require('../db/models');
+    const setting = await Setting.findOne({ key: 'calendarEmail' }).lean();
+    if (setting && setting.value) CALENDAR_EMAIL = setting.value;
+    _calEmailLoaded = true;
+  } catch (e) { /* ignore — use env var */ }
+  return CALENDAR_EMAIL;
+}
 
 function isConfigured() {
   return !!(
     process.env.MICROSOFT_GRAPH_CLIENT_ID &&
     process.env.MICROSOFT_GRAPH_CLIENT_SECRET &&
-    process.env.MICROSOFT_GRAPH_TENANT_ID &&
-    CALENDAR_EMAIL
+    process.env.MICROSOFT_GRAPH_TENANT_ID
   );
 }
+
+// Reset cached email so next call re-reads from DB
+function resetCalendarEmailCache() { _calEmailLoaded = false; }
 
 function getMsalClient() {
   if (!msalClient) {
@@ -71,6 +86,8 @@ function getBusinessDays(startDate, count) {
  * @returns {Promise<Array>} Available slots grouped by date
  */
 async function getAvailableSlots(fromDate, daysCount = 3) {
+  await loadCalendarEmail();
+  if (!CALENDAR_EMAIL) throw new Error('Calendar email not configured');
   const graph = await getGraphClient();
 
   const start = fromDate ? new Date(fromDate) : new Date();
@@ -158,7 +175,9 @@ async function getAvailableSlots(fromDate, daysCount = 3) {
 /**
  * Create a calendar booking
  */
-async function createBooking({ start, end, customerName, customerEmail, meetingType, notes }) {
+async function createBooking({ start, end, customerName, customerEmail, meetingType, notes, phone, company }) {
+  await loadCalendarEmail();
+  if (!CALENDAR_EMAIL) throw new Error('Calendar email not configured');
   const graph = await getGraphClient();
 
   const typeLabels = { call: 'Call', demo: 'Demo', meeting: 'Meeting' };
@@ -170,6 +189,8 @@ async function createBooking({ start, end, customerName, customerEmail, meetingT
       contentType: 'HTML',
       content: `<p><strong>Type:</strong> ${typeLabels[meetingType] || meetingType}</p>
         <p><strong>Customer:</strong> ${customerName} (${customerEmail})</p>
+        ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
+        ${company ? `<p><strong>Company:</strong> ${company}</p>` : ''}
         ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
         <p><em>Booked via AIChatDesk</em></p>`
     },
@@ -196,4 +217,4 @@ async function createBooking({ start, end, customerName, customerEmail, meetingT
   };
 }
 
-module.exports = { isConfigured, getAvailableSlots, createBooking };
+module.exports = { isConfigured, getAvailableSlots, createBooking, resetCalendarEmailCache };

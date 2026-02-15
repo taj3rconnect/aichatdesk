@@ -425,7 +425,7 @@
 
   <div class="header">
     <h1 style="cursor:pointer;" onclick="switchTab('chats')">AIChatDesk Agent Dashboard</h1>
-    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.03 <span style="margin-left: 10px;">02/15 -- 12:13 AM</span></span>
+    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.04 <span style="margin-left: 10px;">02/15 -- 12:30 AM</span></span>
     <div class="agent-info">
       <span><span class="status-dot" id="agent-dot"></span> <span id="agent-name" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;" onclick="openProfileModal()" title="My Profile">Agent</span></span>
       <span style="color: #666;">|</span>
@@ -453,6 +453,7 @@
       <button class="tab-btn" id="tab-kb" onclick="switchTab('kb')">Knowledge Base</button>
       <button class="tab-btn" id="tab-categories" onclick="switchTab('categories')">Categories</button>
       <button class="tab-btn" id="tab-users" onclick="switchTab('users')" style="display:none;">Users</button>
+      <button class="tab-btn" id="tab-settings" onclick="switchTab('settings')">Settings</button>
     </span>
   </div>
 
@@ -659,6 +660,24 @@
         <thead><tr><th>Label</th><th>URL</th><th>Roles</th><th>Used/Max</th><th>Created</th><th>Actions</th></tr></thead>
         <tbody id="invite-links-list"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Settings Page -->
+  <div id="settings-page" style="display:none; padding:30px;">
+    <h2 style="color: #6C5CE7; margin-bottom: 24px;">Settings</h2>
+
+    <!-- Calendar Settings -->
+    <div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:24px;margin-bottom:20px;max-width:600px;">
+      <h3 style="font-size:15px;color:#1e1919;margin-bottom:4px;">Calendar / Book Demo</h3>
+      <p style="font-size:12px;color:#8c9bab;margin-bottom:16px;">Configure whose Office 365 calendar is used for booking demos and meetings.</p>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Calendar Email</label>
+        <input type="email" id="setting-calendar-email" placeholder="e.g. sales@company.com" style="width:100%;max-width:400px;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        <p style="font-size:11px;color:#8c9bab;margin-top:4px;">This email's Office 365 calendar will be checked for availability and bookings will be created on it.</p>
+      </div>
+      <button onclick="saveSettings()" style="background:#0061ff;color:#fff;border:none;padding:8px 24px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Save</button>
+      <span id="settings-save-msg" style="margin-left:12px;font-size:12px;color:#17a34a;display:none;">Saved!</span>
     </div>
   </div>
 
@@ -1906,13 +1925,16 @@
       document.getElementById('tab-kb').classList.toggle('active', tab === 'kb');
       document.getElementById('tab-categories').classList.toggle('active', tab === 'categories');
       document.getElementById('tab-users').classList.toggle('active', tab === 'users');
+      document.getElementById('tab-settings').classList.toggle('active', tab === 'settings');
       document.querySelector('.main').style.display = tab === 'chats' ? 'grid' : 'none';
       document.getElementById('kb-page').classList.toggle('active', tab === 'kb');
       document.getElementById('categories-page').style.display = tab === 'categories' ? 'block' : 'none';
       document.getElementById('users-page').style.display = tab === 'users' ? 'block' : 'none';
+      document.getElementById('settings-page').style.display = tab === 'settings' ? 'block' : 'none';
       if (tab === 'kb') kbPageRefresh();
       if (tab === 'categories') loadCategories();
       if (tab === 'users') loadUsers();
+      if (tab === 'settings') loadSettings();
     }
 
     // --- KB Page functions ---
@@ -2516,6 +2538,38 @@
       } catch (err) {
         alert('Failed to push to knowledge base: ' + err.message);
       }
+    }
+
+    // --- Settings ---
+    async function loadSettings() {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API}/api/settings`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const settings = await res.json();
+          document.getElementById('setting-calendar-email').value = settings.calendarEmail || '';
+        }
+      } catch (err) { console.error('Load settings error:', err); }
+    }
+
+    async function saveSettings() {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API}/api/settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            calendarEmail: document.getElementById('setting-calendar-email').value.trim()
+          })
+        });
+        if (res.ok) {
+          const msg = document.getElementById('settings-save-msg');
+          msg.style.display = 'inline';
+          setTimeout(() => { msg.style.display = 'none'; }, 2000);
+        }
+      } catch (err) { console.error('Save settings error:', err); }
     }
 
     // --- Profile modal ---

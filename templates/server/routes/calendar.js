@@ -31,13 +31,13 @@ router.post('/book', async (req, res) => {
   }
 
   try {
-    const { start, end, customerName, customerEmail, meetingType, sessionId, notes } = req.body;
+    const { start, end, customerName, customerEmail, meetingType, sessionId, notes, phone, company } = req.body;
 
     if (!start || !end || !customerName || !customerEmail || !meetingType) {
       return res.status(400).json({ error: 'start, end, customerName, customerEmail, and meetingType are required' });
     }
 
-    const result = await createBooking({ start, end, customerName, customerEmail, meetingType, notes });
+    const result = await createBooking({ start, end, customerName, customerEmail, meetingType, notes, phone, company });
 
     // Store booking in chat metadata if sessionId provided
     if (sessionId) {

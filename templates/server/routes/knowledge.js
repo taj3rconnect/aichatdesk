@@ -147,9 +147,14 @@ router.post('/upload', upload.single('file'), async (req, res) => {
  */
 router.post('/import-url', async (req, res) => {
   try {
-    const { url } = req.body;
+    let { url } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'url is required' });
+    }
+
+    // Auto-prepend https:// if no protocol
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
     }
 
     // Fetch the page

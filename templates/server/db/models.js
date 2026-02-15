@@ -151,6 +151,13 @@ const TeamsConversation = mongoose.model('aichatdesk_teams_conversations', teams
 const Role = mongoose.model('aichatdesk_roles', roleSchema);
 const InviteLink = mongoose.model('aichatdesk_invite_links', inviteLinkSchema);
 
+const settingSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: mongoose.Schema.Types.Mixed,
+  updatedAt: { type: Date, default: Date.now }
+});
+const Setting = mongoose.model('aichatdesk_settings', settingSchema);
+
 module.exports = {
   Chat,
   Message,
@@ -162,5 +169,6 @@ module.exports = {
   ResponseCache,
   TeamsConversation,
   Role,
-  InviteLink
+  InviteLink,
+  Setting
 };
