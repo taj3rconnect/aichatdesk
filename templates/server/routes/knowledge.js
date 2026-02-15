@@ -361,4 +361,61 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/knowledge/push
+ * Push a conversation snippet (question, answer, or both) directly into the knowledge base
+ * This enables self-learning from agent conversations
+ */
+const { generateEmbedding } = require('../utils/embeddings');
+const { authenticateAgent, requireRole } = require('../middleware/auth');
+
+router.post('/push', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const { question, answer, source } = req.body;
+
+    if (!question && !answer) {
+      return res.status(400).json({ error: 'At least question or answer is required' });
+    }
+
+    // Build the text to embed
+    let text = '';
+    if (question && answer) {
+      text = `Q: ${question}\nA: ${answer}`;
+    } else if (question) {
+      text = question;
+    } else {
+      text = answer;
+    }
+
+    // Create a KB entry for tracking
+    const kbEntry = await KnowledgeBase.create({
+      filename: `chat-learning-${Date.now()}`,
+      originalName: source || 'Chat Conversation',
+      fileType: 'text/plain',
+      fileSize: text.length,
+      content: text,
+      chunks: [{ text }],
+      active: true
+    });
+
+    // Generate embedding and store
+    const embedding = await generateEmbedding(text);
+    if (embedding) {
+      await Embedding.create({
+        knowledgeBaseId: kbEntry._id,
+        chunkIndex: 0,
+        text: text,
+        embedding: embedding,
+        metadata: { source: 'chat-push', pushDate: new Date().toISOString() }
+      });
+    }
+
+    console.log(`[Knowledge] Pushed conversation snippet to RAG (${text.length} chars)`);
+    return res.status(201).json({ success: true, id: kbEntry._id, textLength: text.length });
+  } catch (err) {
+    console.error('[Knowledge] Push error:', err.message);
+    return res.status(500).json({ error: 'Failed to push to knowledge base' });
+  }
+});
+
 module.exports = router;

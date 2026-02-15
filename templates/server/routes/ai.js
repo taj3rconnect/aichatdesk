@@ -81,13 +81,15 @@ router.post('/query', async (req, res) => {
     console.log(`[AI Query] Found ${ragResults.length} relevant knowledge base chunks`);
 
     // 4. Build Claude prompt
-    let systemPrompt = `You are a helpful customer support AI assistant. Answer questions based on the provided knowledge base context when available. If the knowledge base doesn't contain the answer, say so clearly and provide general help if possible. Respond in ${language} language.
+    let systemPrompt = `You are a helpful customer support AI assistant. Answer questions ONLY based on the provided knowledge base context. If the knowledge base doesn't contain the answer, say "I don't have that information in our knowledge base. Let me connect you with a team member who can help." Do NOT make up or guess product names, features, or details not in the knowledge base. Respond in ${language} language.
 
 Important rules:
+- ONLY use facts from the knowledge base context provided below — NEVER invent product names, company names, or features
+- If no knowledge base context is provided or it doesn't answer the question, clearly say you don't have that information
 - NEVER include the user's personal information (their name, phone, email) in your responses
 - Do NOT greet the user by name or reference their personal details
 - Only provide company contact details when the user specifically asks for contact info, pricing, or important inquiries — do NOT add contact info to every reply
-- Focus only on answering the question with relevant product/service information
+- Focus only on answering the question with relevant product/service information from the knowledge base
 
 Format rules:
 - Keep answers SHORT — 2-3 sentences max unless the user asks for detail

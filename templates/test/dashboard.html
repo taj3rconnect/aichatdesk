@@ -209,6 +209,9 @@
     .checkbox-group label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #ccc; cursor: pointer; padding: 2px 6px; background: #16213e; border-radius: 4px; }
     .checkbox-group input[type="checkbox"] { width: auto; margin: 0; }
     .invite-url { font-family: 'Courier New', monospace; font-size: 11px; color: #6C5CE7; background: #2a2a4a; padding: 4px 8px; border-radius: 4px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
+    .push-rag-btn { background: none; border: none; cursor: pointer; font-size: 12px; opacity: 0.4; padding: 0 4px; transition: opacity 0.2s; vertical-align: middle; }
+    .push-rag-btn:hover { opacity: 1; }
+    .push-rag-btn.pushed { opacity: 0.3; cursor: default; }
   </style>
 </head>
 <body>
@@ -1093,7 +1096,8 @@
           if (msg.isInternal) {
             return `<div class="message internal"><div class="sender">Internal Note</div><div class="bubble">${escapeHtml(msg.content)}</div><div class="time">${time}</div></div>`;
           }
-          return `<div class="message ${sender}"><div class="sender">${senderLabel}</div><div class="bubble">${escapeHtml(msg.content)}${attachHtml}</div><div class="time">${time}</div></div>`;
+          const pushBtn = `<button class="push-rag-btn" onclick="pushToRAG('${escapeHtml(msg.content).replace(/'/g, "\\'")}', '${sender}')" title="Push to Knowledge Base">&#x1F4DA;</button>`;
+          return `<div class="message ${sender}"><div class="sender">${senderLabel} ${pushBtn}</div><div class="bubble">${escapeHtml(msg.content)}${attachHtml}</div><div class="time">${time}</div></div>`;
         }).join('');
         el.scrollTop = el.scrollHeight;
       } catch (err) { log('Load messages error: ' + err.message); }
@@ -2062,6 +2066,38 @@
         closeModal('reset-pw-modal');
         log('Password reset successfully');
       } catch (err) { alert('Reset failed: ' + err.message); }
+    }
+
+    // --- Push to RAG (knowledge base) ---
+    async function pushToRAG(content, sender) {
+      if (!token) return;
+      const body = {};
+      if (sender === 'user') {
+        body.question = content;
+        body.source = 'Chat - User Question';
+      } else {
+        body.answer = content;
+        body.source = 'Chat - Agent/AI Response';
+      }
+
+      try {
+        const res = await fetch(`${API}/api/knowledge/push`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.success) {
+          log(`Pushed to knowledge base (${content.substring(0, 50)}...)`);
+          // Visual feedback - find the button that was clicked
+          event.target.classList.add('pushed');
+          event.target.title = 'Already pushed to KB';
+        } else {
+          alert(data.error || 'Failed to push to knowledge base');
+        }
+      } catch (err) {
+        alert('Failed to push to knowledge base: ' + err.message);
+      }
     }
 
     // --- Profile modal ---
