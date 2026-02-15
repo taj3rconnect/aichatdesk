@@ -556,33 +556,87 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
+    /**
+     * AIChatDesk Customer Chat Widget
+     *
+     * Embeddable chat widget that provides customers with AI-powered support,
+     * live agent handoff, file uploads with screenshot annotation, calendar
+     * booking, workflow categories, emoji picker, and quick actions.
+     *
+     * Communication flow:
+     *   1. Customer fills pre-chat form (name, email, ticket type, priority, mood)
+     *   2. Chat session created via REST API, WebSocket joined for real-time messages
+     *   3. Messages sent to AI engine; if confidence is low, auto-escalates to human agent
+     *   4. Agents can take over via WebSocket events (agent.takeover / agent.return)
+     *
+     * Key integrations:
+     *   - REST API for chat CRUD, AI queries, file uploads, calendar booking
+     *   - WebSocket for real-time message delivery and agent handoff events
+     *   - html2canvas for screenshot capture with annotation overlay
+     */
+
+    // ================================================================
+    // Global Configuration & State
+    // ================================================================
+
+    /** @type {string} Base REST API URL */
     const API = 'http://localhost:8004';
+    /** @type {string} WebSocket endpoint URL */
     const WS_URL = 'ws://localhost:8004/ws';
 
+    /** @type {string[]} File extensions blocked from upload for security */
     const BLOCKED_EXTENSIONS = ['.exe','.com','.bat','.cmd','.scr','.pif','.msi','.vbs','.js','.ws','.wsf','.ps1','.sh'];
 
+    /** @type {WebSocket|null} Active WebSocket connection instance */
     let ws = null;
+    /** @type {string|null} Current chat session ID (used for WS room joining) */
     let sessionId = null;
+    /** @type {string|null} Current chat ID (used for API message operations) */
     let chatId = null;
+    /** @type {'ai'|'human'} Current chat mode - toggles between AI and live agent */
     let chatMode = 'ai';
+    /** @type {string} Customer's name from the pre-chat form */
     let userName = '';
+    /** @type {string} Customer's email from the pre-chat form */
     let userEmail = '';
-    let pendingFiles = []; // files queued for upload
+    /** @type {File[]} Files queued for upload with the next message */
+    let pendingFiles = [];
+    /** @type {string|null} Selected ticket type from the pre-chat header popup */
     let selectedTicketType = null;
+    /** @type {string} Selected priority level from the pre-chat header popup */
     let selectedPriority = 'medium';
+    /** @type {number} Selected customer mood (1=angry to 5=amazing) */
     let selectedMood = 3;
+    /** @type {string|null} Selected workflow category ID */
     let selectedCategory = null;
 
+    // ================================================================
+    // Header Popups (Ticket Type, Priority, Mood)
+    // ================================================================
+
+    /**
+     * Toggles a header popup menu open/closed. Closes all other popups first
+     * to ensure only one popup is visible at a time.
+     * @param {string} id - The DOM id of the popup element to toggle
+     */
     function toggleHeaderPopup(id) {
       closeAllPopups();
       const popup = document.getElementById(id);
       popup.classList.toggle('open');
     }
 
+    /**
+     * Closes all open popup menus (header popups, emoji picker,
+     * quick actions, and calendar popup).
+     */
     function closeAllPopups() {
       document.querySelectorAll('.header-popup, #emoji-picker, #quick-actions, #calendar-popup').forEach(p => p.classList.remove('open'));
     }
 
+    /**
+     * Selects a ticket type and highlights the corresponding popup item.
+     * @param {string} type - The ticket type identifier (e.g. 'bug', 'feature')
+     */
     function selectTicket(type) {
       selectedTicketType = type;
       document.querySelectorAll('#ticket-popup .popup-item').forEach(el => {
@@ -590,6 +644,10 @@
       });
       document.getElementById('ticket-popup').classList.remove('open');
     }
+    /**
+     * Selects a priority level and highlights the corresponding popup item.
+     * @param {string} level - Priority level ('low', 'medium', 'high', 'urgent')
+     */
     function selectPriority(level) {
       selectedPriority = level;
       document.querySelectorAll('#priority-popup .popup-item').forEach(el => {
@@ -597,6 +655,10 @@
       });
       document.getElementById('priority-popup').classList.remove('open');
     }
+    /**
+     * Selects a customer mood value and highlights the corresponding popup item.
+     * @param {number} val - Mood value from 1 (angry) to 5 (amazing)
+     */
     function selectMood(val) {
       selectedMood = val;
       const labels = ['', 'angry', 'confused', 'neutral', 'happy', 'amazing'];
@@ -606,7 +668,16 @@
       document.getElementById('mood-popup').classList.remove('open');
     }
 
-    // --- Environment capture ---
+    // ================================================================
+    // Environment Capture
+    // ================================================================
+
+    /**
+     * Captures the customer's browser environment metadata for debugging
+     * and analytics. Includes browser info, screen dimensions, network
+     * status, hardware capabilities, and navigation context.
+     * @returns {Object} Environment data object with browser, screen, network, and device properties
+     */
     function captureEnvironment() {
       return {
         browser: navigator.userAgent,
@@ -636,14 +707,26 @@
       };
     }
 
-    // --- Emoji data ---
+    // ================================================================
+    // Emoji Picker Data
+    // ================================================================
+
+    /** @type {Object.<string, string[]>} Emoji categories mapped to arrays of emoji characters */
     const emojiData = {
       'Smileys': ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','😉','😌','😍','🥰','😘','😗','😙','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','😐','😑','😶','😏','😒','🙄','😬','😮‍💨','🤥'],
       'Gestures': ['👍','👎','👋','🤝','🙏','💪','👏','🤞','✌️','🤟','🤙','👌','🫡','🫶','❤️','🔥','⭐','✅','❌','⚡','💯'],
       'Objects': ['💻','📱','📧','📎','📝','🔑','🔒','💡','📊','🎯','🛠️','⚙️','📦','🚀','💬','📞','🏷️','💳','🧾','📋']
     };
 
-    // --- Server health check ---
+    // ================================================================
+    // Server Health Check
+    // ================================================================
+
+    /**
+     * Polls the server health endpoint and updates the connection status
+     * indicator in the UI. Called on init and every 30 seconds.
+     * @returns {Promise<void>}
+     */
     async function checkServer() {
       try {
         const res = await fetch(`${API}/health`);
@@ -658,7 +741,15 @@
       }
     }
 
-    // --- WebSocket ---
+    // ================================================================
+    // WebSocket Connection & Message Handling
+    // ================================================================
+
+    /**
+     * Establishes a WebSocket connection to the server. On open, joins the
+     * current chat session room. On close, auto-reconnects after 3 seconds.
+     * All incoming messages are routed to handleWSMessage().
+     */
     function connectWS() {
       try {
         ws = new WebSocket(WS_URL);
@@ -677,27 +768,50 @@
       } catch {}
     }
 
+    /**
+     * Routes incoming WebSocket messages by type. Handles:
+     *   - chat.message: Displays messages from non-user senders (AI/agent)
+     *   - agent.takeover: Switches to human mode, shows agent join notification
+     *   - agent.return: Switches back to AI mode, shows AI notification
+     * @param {Object} data - Parsed WebSocket message payload
+     * @param {string} data.type - Message type identifier
+     * @param {Object} [data.message] - Chat message object (for chat.message type)
+     * @param {string} [data.agentName] - Agent name (for agent.takeover type)
+     */
     function handleWSMessage(data) {
       switch (data.type) {
         case 'chat.message':
+          // Only display messages from non-user senders to avoid duplicating the user's own message
           if (data.message && data.message.sender !== 'user') {
             addMessage(data.message.content, data.message.sender, data.message.senderName);
           }
           break;
         case 'agent.takeover':
+          // State transition: AI -> Human agent mode
           chatMode = 'human'; updateModeBadge();
           addSystemMessage(`${data.agentName || 'An agent'} has joined the chat`);
           break;
         case 'agent.return':
+          // State transition: Human agent -> AI mode
           chatMode = 'ai'; updateModeBadge();
           addSystemMessage('You are now chatting with AI');
           break;
       }
     }
 
+    /** Toggles the chat window open/closed by toggling the 'open' CSS class. */
     function toggleChat() { document.getElementById('chat-window').classList.toggle('open'); }
 
-    // --- Workflow categories ---
+    // ================================================================
+    // Workflow Categories
+    // ================================================================
+
+    /**
+     * Fetches workflow categories from the API and renders them as
+     * selectable buttons in the category bar. Categories allow the AI
+     * to tailor its responses based on the customer's intent.
+     * @returns {Promise<void>}
+     */
     async function loadCategories() {
       try {
         const res = await fetch(`${API}/api/categories`);
@@ -713,6 +827,13 @@
       }
     }
 
+    /**
+     * Selects a workflow category, patches the chat session with the category ID,
+     * and triggers an AI greeting based on the category's configured prompt.
+     * @param {string} catId - The category document ID
+     * @param {HTMLButtonElement} btn - The clicked category button element
+     * @returns {Promise<void>}
+     */
     async function selectCategory(catId, btn) {
       selectedCategory = catId;
       document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
@@ -746,7 +867,17 @@
       }
     }
 
-    // --- Start chat ---
+    // ================================================================
+    // Chat Lifecycle
+    // ================================================================
+
+    /**
+     * Initiates a new chat session. Validates the pre-chat form, creates a
+     * session via the API (including ticket type, priority, mood, and browser
+     * environment), joins the WebSocket room, loads categories, and triggers
+     * the initial AI greeting if no categories are configured.
+     * @returns {Promise<void>}
+     */
     async function startChat() {
       userName = document.getElementById('user-name').value.trim();
       userEmail = document.getElementById('user-email').value.trim();
@@ -805,7 +936,16 @@
       } catch (err) { alert('Failed to connect: ' + err.message); }
     }
 
-    // --- Upload files ---
+    // ================================================================
+    // File Upload
+    // ================================================================
+
+    /**
+     * Uploads an array of files to the server via multipart form data.
+     * @param {File[]} files - Array of File objects to upload
+     * @returns {Promise<Object[]>} Array of uploaded file metadata objects
+     *   with properties: originalName, filename, url, type, size
+     */
     async function uploadFiles(files) {
       const formData = new FormData();
       for (const f of files) formData.append('files', f);
@@ -819,7 +959,19 @@
       }
     }
 
-    // --- Send message ---
+    // ================================================================
+    // Send Message
+    // ================================================================
+
+    /**
+     * Sends a chat message. Handles the full message lifecycle:
+     *   1. Uploads any pending file attachments
+     *   2. Displays the user's message in the chat UI
+     *   3. Persists the message to the database via API
+     *   4. If in AI mode, queries the AI engine for a response
+     *   5. If AI confidence is low, auto-escalates to human agent mode
+     * @returns {Promise<void>}
+     */
     async function sendMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
@@ -855,7 +1007,7 @@
         });
       } catch (err) { console.error('Failed to save message:', err); }
 
-      // AI query
+      // AI query — only runs in AI mode and when there's text (file-only messages skip AI)
       if (chatMode === 'ai' && text) {
         try {
           const res = await fetch(`${API}/api/ai/query`, {
@@ -868,6 +1020,7 @@
           if (data.response) {
             addMessage(data.response, 'ai', null, data.confidence);
             if (data.needsHuman) {
+              // Auto-escalate: AI flagged low confidence, switch to human agent mode
               addSystemMessage('AI confidence is low. Requesting human agent...');
               chatMode = 'human'; updateModeBadge();
             }
@@ -883,7 +1036,16 @@
       }
     }
 
-    // --- Blocked extension check ---
+    // ================================================================
+    // File Handling & Attachments
+    // ================================================================
+
+    /**
+     * Checks if a file has a blocked extension (executable, script, etc.).
+     * Extracts the extension from the last dot in the filename.
+     * @param {File} file - The file to check
+     * @returns {boolean} True if the file extension is in the blocked list
+     */
     function isBlockedFile(file) {
       const name = file.name.toLowerCase();
       const dotIdx = name.lastIndexOf('.');
@@ -892,7 +1054,11 @@
       return BLOCKED_EXTENSIONS.includes(ext);
     }
 
-    // --- File handling ---
+    /**
+     * Handles file input change events. Filters out blocked file types
+     * and adds valid files to the pending upload queue.
+     * @param {Event} e - The file input change event
+     */
     function handleFileSelect(e) {
       const files = Array.from(e.target.files);
       files.forEach(f => {
@@ -905,6 +1071,11 @@
       e.target.value = ''; // reset so same file can be re-selected
     }
 
+    /**
+     * Adds a file to the pending upload queue with validation.
+     * Enforces: blocked extensions, max 5 files, max 10MB per file.
+     * @param {File} file - The file to add to the pending queue
+     */
     function addPendingFile(file) {
       if (isBlockedFile(file)) {
         alert(`File "${file.name}" is not allowed. Blocked file type.`);
@@ -916,16 +1087,26 @@
       renderAttachmentPreview();
     }
 
+    /**
+     * Removes a file from the pending upload queue by index.
+     * @param {number} idx - Zero-based index of the file to remove
+     */
     function removePendingFile(idx) {
       pendingFiles.splice(idx, 1);
       renderAttachmentPreview();
     }
 
+    /** Clears all pending files and hides the attachment preview area. */
     function clearAttachments() {
       pendingFiles = [];
       renderAttachmentPreview();
     }
 
+    /**
+     * Renders thumbnail previews of all pending files. Images get an
+     * actual thumbnail via createObjectURL; other files show the
+     * file extension as a text icon.
+     */
     function renderAttachmentPreview() {
       const el = document.getElementById('attachment-preview');
       if (pendingFiles.length === 0) {
@@ -944,7 +1125,15 @@
       }).join('');
     }
 
-    // --- Clipboard paste (screenshots) ---
+    // ================================================================
+    // Clipboard Paste (Screenshot Detection)
+    // ================================================================
+
+    /**
+     * Listens for paste events to detect pasted images (screenshots).
+     * Converts clipboard image data to a named File and adds it to
+     * the pending upload queue. Only active when a chat session exists.
+     */
     document.addEventListener('paste', (e) => {
       if (!chatId) return;
       const items = e.clipboardData?.items;
@@ -962,7 +1151,14 @@
       }
     });
 
-    // --- Emoji picker ---
+    // ================================================================
+    // Emoji Picker
+    // ================================================================
+
+    /**
+     * Toggles the emoji picker popup. Lazily builds the picker HTML
+     * on first open, organized by category (Smileys, Gestures, Objects).
+     */
     function toggleEmoji() {
       const picker = document.getElementById('emoji-picker');
       const wasOpen = picker.classList.contains('open');
@@ -981,6 +1177,11 @@
       picker.classList.add('open');
     }
 
+    /**
+     * Inserts an emoji character at the current cursor position in the
+     * chat input field, then closes the emoji picker.
+     * @param {string} emoji - The emoji character to insert
+     */
     function insertEmoji(emoji) {
       const input = document.getElementById('chat-input');
       const pos = input.selectionStart || input.value.length;
@@ -990,16 +1191,31 @@
       document.getElementById('emoji-picker').classList.remove('open');
     }
 
-    // --- Enhanced Screenshot annotation ---
-    let annoBaseImage = null;
-    let annoDrawing = false;
-    let annoCtx = null;
-    let annotationMode = 'pen'; // 'pen' | 'text' | 'circle'
-    let annotationColor = '#e74c3c';
-    let annotations = []; // { type: 'pen'|'text'|'circle', data: ..., color: string }
-    let currentPenPath = []; // points for current pen stroke
-    let circleStart = null; // {x, y} for circle drag start
+    // ================================================================
+    // Screenshot Annotation Tools
+    // ================================================================
 
+    /** @type {ImageData|null} Original screenshot pixel data for redraw operations */
+    let annoBaseImage = null;
+    /** @type {boolean} Whether the user is currently drawing (mouse/touch held down) */
+    let annoDrawing = false;
+    /** @type {CanvasRenderingContext2D|null} 2D context of the annotation canvas */
+    let annoCtx = null;
+    /** @type {'pen'|'text'|'circle'} Currently active annotation drawing mode */
+    let annotationMode = 'pen';
+    /** @type {string} Current annotation stroke/fill color (CSS hex) */
+    let annotationColor = '#e74c3c';
+    /** @type {Array<{type: 'pen'|'text'|'circle', data: Object, color: string}>} Stack of completed annotations for undo support */
+    let annotations = [];
+    /** @type {Array<{x: number, y: number}>} Points for the current pen stroke in progress */
+    let currentPenPath = [];
+    /** @type {{x: number, y: number}|null} Starting coordinates for circle/ellipse drag */
+    let circleStart = null;
+
+    /**
+     * Sets the active annotation drawing mode and updates toolbar button states.
+     * @param {'pen'|'text'|'circle'} mode - The annotation mode to activate
+     */
     function setAnnotationMode(mode) {
       annotationMode = mode;
       document.getElementById('anno-pen-btn').classList.toggle('active', mode === 'pen');
@@ -1010,6 +1226,10 @@
       canvas.style.cursor = mode === 'text' ? 'text' : 'crosshair';
     }
 
+    /**
+     * Sets the active annotation color and updates the color dot selection UI.
+     * @param {string} color - CSS color value (e.g. '#e74c3c')
+     */
     function setAnnotationColor(color) {
       annotationColor = color;
       document.querySelectorAll('.anno-color-dot').forEach(dot => {
@@ -1018,6 +1238,11 @@
       });
     }
 
+    /**
+     * Captures a screenshot of the current page using html2canvas.
+     * Temporarily hides the chat widget to avoid capturing it in the screenshot,
+     * then opens the annotation overlay with the captured image.
+     */
     function captureScreenshot() {
       if (!chatId) { alert('Please start a chat first'); return; }
       const chatWindow = document.getElementById('chat-window');
@@ -1037,6 +1262,12 @@
       });
     }
 
+    /**
+     * Opens the annotation overlay with the captured screenshot. Scales the
+     * canvas to fit 90% of viewport width / 70% of viewport height, initializes
+     * drawing state, and attaches mouse and touch event handlers.
+     * @param {HTMLCanvasElement} sourceCanvas - The html2canvas result to annotate
+     */
     function openAnnotation(sourceCanvas) {
       const overlay = document.getElementById('annotation-overlay');
       const annoCanvas = document.getElementById('annotation-canvas');
@@ -1089,6 +1320,12 @@
       overlay.classList.add('open');
     }
 
+    /**
+     * Handles mouse/touch down on the annotation canvas. Begins a pen stroke,
+     * circle drag, or opens a text input depending on the active mode.
+     * @param {number} x - X coordinate relative to the canvas
+     * @param {number} y - Y coordinate relative to the canvas
+     */
     function handleAnnoMouseDown(x, y) {
       if (annotationMode === 'pen') {
         annoDrawing = true;
@@ -1103,6 +1340,13 @@
       }
     }
 
+    /**
+     * Handles mouse/touch move on the annotation canvas. For pen mode,
+     * draws a line segment. For circle mode, redraws all annotations
+     * then previews the ellipse from the drag start to current position.
+     * @param {number} x - X coordinate relative to the canvas
+     * @param {number} y - Y coordinate relative to the canvas
+     */
     function handleAnnoMouseMove(x, y) {
       if (!annoDrawing) return;
       if (annotationMode === 'pen') {
@@ -1120,6 +1364,12 @@
       }
     }
 
+    /**
+     * Handles mouse/touch up on the annotation canvas. Finalizes the current
+     * pen stroke or circle annotation and pushes it onto the annotations stack.
+     * @param {number} x - X coordinate relative to the canvas
+     * @param {number} y - Y coordinate relative to the canvas
+     */
     function handleAnnoMouseUp(x, y) {
       if (!annoDrawing) return;
       annoDrawing = false;
@@ -1133,6 +1383,12 @@
       }
     }
 
+    /**
+     * Shows a text input field at the clicked position on the annotation canvas.
+     * Commits the text as an annotation on Enter or blur, cancels on Escape.
+     * @param {number} x - X position for the text input (canvas coordinates)
+     * @param {number} y - Y position for the text input (canvas coordinates)
+     */
     function showTextInput(x, y) {
       const container = document.getElementById('annotation-canvas-container');
       const input = document.getElementById('annotation-text-input');
@@ -1175,6 +1431,17 @@
       input.addEventListener('blur', onBlur);
     }
 
+    /**
+     * Draws an ellipse on the annotation canvas defined by two corner points
+     * of its bounding rectangle. Used for both preview (during drag) and
+     * final rendering (during redraw).
+     * @param {number} x1 - X of the first corner (drag start)
+     * @param {number} y1 - Y of the first corner (drag start)
+     * @param {number} x2 - X of the second corner (drag end)
+     * @param {number} y2 - Y of the second corner (drag end)
+     * @param {string} color - Stroke color (CSS color value)
+     * @param {boolean} permanent - Whether this is a permanent annotation (unused, kept for API consistency)
+     */
     function drawEllipseFromPoints(x1, y1, x2, y2, color, permanent) {
       const cx = (x1 + x2) / 2;
       const cy = (y1 + y2) / 2;
@@ -1188,6 +1455,11 @@
       annoCtx.stroke();
     }
 
+    /**
+     * Redraws the annotation canvas from scratch: restores the base screenshot
+     * image, then replays all annotations from the stack. Called after undo,
+     * clear, or during circle preview to avoid overlapping drawings.
+     */
     function redrawAnnotations() {
       if (!annoBaseImage || !annoCtx) return;
       const canvas = document.getElementById('annotation-canvas');
@@ -1218,12 +1490,17 @@
       }
     }
 
+    /** Removes the last annotation from the stack and redraws the canvas. */
     function annotationUndo() {
       if (annotations.length === 0) return;
       annotations.pop();
       redrawAnnotations();
     }
 
+    /**
+     * Finalizes the annotation by converting the canvas to a PNG blob,
+     * adding it as a pending file attachment, and closing the overlay.
+     */
     function annotationDone() {
       const annoCanvas = document.getElementById('annotation-canvas');
       annoCanvas.toBlob(blob => {
@@ -1235,11 +1512,13 @@
       }, 'image/png');
     }
 
+    /** Clears all annotations from the canvas (keeps the base screenshot). */
     function annotationClear() {
       annotations = [];
       redrawAnnotations();
     }
 
+    /** Closes the annotation overlay and resets all annotation state. */
     function annotationCancel() {
       document.getElementById('annotation-overlay').classList.remove('open');
       document.getElementById('annotation-text-input').style.display = 'none';
@@ -1250,11 +1529,21 @@
       circleStart = null;
     }
 
-    // --- Calendar scheduling ---
+    // ================================================================
+    // Calendar Scheduling / Booking Flow
+    // ================================================================
+
+    /** @type {string|null} Selected meeting type ('call', 'demo', or 'meeting') */
     let calMeetingType = null;
-    let calSlotData = []; // { days: [...] }
+    /** @type {Array<{label: string, slots: Array}>} Available calendar days with their time slots */
+    let calSlotData = [];
+    /** @type {{start: string, end: string, display: string}|null} Currently selected time slot */
     let calSelectedSlot = null;
 
+    /**
+     * Opens the calendar booking popup and resets it to step 1 (meeting type selection).
+     * The booking flow has 4 steps: type -> slots -> confirm -> success.
+     */
     function openCalendarPopup() {
       closeAllPopups();
       // Reset to step 1
@@ -1268,10 +1557,15 @@
       document.getElementById('calendar-popup').classList.add('open');
     }
 
+    /** Closes the calendar booking popup. */
     function closeCalendarPopup() {
       document.getElementById('calendar-popup').classList.remove('open');
     }
 
+    /**
+     * Selects a meeting type and advances to step 2 (time slot selection).
+     * @param {string} type - Meeting type ('call', 'demo', or 'meeting')
+     */
     function selectMeetingType(type) {
       calMeetingType = type;
       document.querySelectorAll('.cal-type-btn').forEach(b => b.classList.remove('selected'));
@@ -1284,6 +1578,12 @@
       loadCalendarSlots();
     }
 
+    /**
+     * Fetches available calendar time slots from the API and renders
+     * date tabs with their corresponding time slot buttons.
+     * @param {string} [fromDate] - Optional ISO date string to start loading slots from
+     * @returns {Promise<void>}
+     */
     async function loadCalendarSlots(fromDate) {
       const container = document.getElementById('cal-slots-container');
       container.innerHTML = '<div class="cal-loading">Loading available times...</div>';
@@ -1325,6 +1625,10 @@
       }
     }
 
+    /**
+     * Renders available time slot buttons for a specific day index.
+     * @param {number} dayIndex - Index into the calSlotData array
+     */
     function renderCalSlots(dayIndex) {
       const container = document.getElementById('cal-slots-container');
       const day = calSlotData[dayIndex];
@@ -1342,6 +1646,14 @@
       container.innerHTML = html;
     }
 
+    /**
+     * Selects a time slot and advances to step 3 (booking confirmation).
+     * Populates the confirmation summary with meeting details.
+     * @param {HTMLButtonElement} el - The clicked slot button element
+     * @param {string} start - ISO start datetime string
+     * @param {string} end - ISO end datetime string
+     * @param {string} display - Human-readable date/time display string
+     */
     function selectCalSlot(el, start, end, display) {
       calSelectedSlot = { start, end, display };
       document.querySelectorAll('.cal-slot').forEach(s => s.classList.remove('selected'));
@@ -1358,6 +1670,10 @@
       document.getElementById('cal-step-confirm').style.display = '';
     }
 
+    /**
+     * Navigates backward in the calendar booking flow.
+     * @param {string} step - The step to go back to ('type' for step 1, 'slots' for step 2)
+     */
     function calGoBack(step) {
       if (step === 'type') {
         document.getElementById('cal-step-slots').style.display = 'none';
@@ -1369,6 +1685,12 @@
       }
     }
 
+    /**
+     * Confirms and submits the calendar booking to the API. On success,
+     * shows the success step with optional meeting link. Also adds a
+     * system message to the chat confirming the booking.
+     * @returns {Promise<void>}
+     */
     async function confirmCalendarBooking() {
       const btn = document.querySelector('#cal-step-confirm .cal-confirm');
       btn.disabled = true;
@@ -1420,7 +1742,11 @@
       }
     }
 
-    // --- Quick actions ---
+    // ================================================================
+    // Quick Actions
+    // ================================================================
+
+    /** Toggles the quick actions menu open/closed. */
     function toggleQuickActions() {
       const menu = document.getElementById('quick-actions');
       const wasOpen = menu.classList.contains('open');
@@ -1428,6 +1754,11 @@
       if (!wasOpen) menu.classList.add('open');
     }
 
+    /**
+     * Triggers a quick action by pre-filling the chat input with a tagged
+     * message prefix and showing a contextual system message.
+     * @param {string} type - Action type ('bug', 'feedback', or 'callback')
+     */
     function quickAction(type) {
       document.getElementById('quick-actions').classList.remove('open');
       if (!chatId) { alert('Please start a chat first'); return; }
@@ -1452,15 +1783,24 @@
       }
     }
 
-    // Close all popups on outside click
+    // Close all popups when clicking outside of any popup area
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.header-popup, #emoji-picker, #quick-actions, #calendar-popup, .header-icon-btn')) {
         closeAllPopups();
       }
     });
 
-    // --- UI helpers ---
-    // --- Markdown-like formatting for AI messages ---
+    // ================================================================
+    // UI Helpers & Message Rendering
+    // ================================================================
+
+    /**
+     * Converts a markdown-like text string into HTML for AI/agent messages.
+     * Supports: headers (# ## ###), bold, italic, inline code, code blocks,
+     * ordered/unordered lists, and blockquotes.
+     * @param {string} text - Raw message text with markdown-like formatting
+     * @returns {string} HTML string ready for innerHTML insertion
+     */
     function formatAIMessage(text) {
       if (!text) return '';
 
@@ -1489,9 +1829,9 @@
         }
         if (inCodeBlock) { codeContent += line + '\n'; continue; }
 
-        // Unordered list items (- or *)
+        // Unordered list items: lines starting with - or * followed by space
         const ulMatch = line.match(/^[\-\*]\s+(.+)/);
-        // Ordered list items (1. 2. etc)
+        // Ordered list items: lines starting with digit(s) followed by . and space
         const olMatch = line.match(/^\d+\.\s+(.+)/);
 
         if (ulMatch) {
@@ -1543,7 +1883,13 @@
       return html;
     }
 
-    // Inline formatting: bold, italic, code, links
+    /**
+     * Applies inline markdown formatting to a single line of text.
+     * Processes in order: HTML escape -> inline code -> bold -> italic.
+     * Uses negative lookaheads/lookbehinds to avoid matching double markers as single.
+     * @param {string} text - Raw text line to format
+     * @returns {string} HTML string with inline formatting applied
+     */
     function inlineFormat(text) {
       let s = escapeHtml(text);
       // Inline code
@@ -1551,12 +1897,22 @@
       // Bold
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
-      // Italic
+      // Italic — negative lookbehind/lookahead ensures single * or _ is not part of ** or __
       s = s.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
       s = s.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
       return s;
     }
 
+    /**
+     * Adds a chat message bubble to the messages container. Handles different
+     * sender types (user, ai, agent) with appropriate styling, renders
+     * markdown for AI/agent messages, and displays file/image attachments.
+     * @param {string} text - Message text content
+     * @param {string} sender - Sender type ('user', 'ai', 'agent', 'system')
+     * @param {string|null} [senderName] - Display name for agent messages
+     * @param {number} [confidence] - AI confidence score (0-1), displayed as percentage
+     * @param {Object[]} [attachments] - Array of uploaded file metadata objects
+     */
     function addMessage(text, sender, senderName, confidence, attachments) {
       const container = document.getElementById('chat-messages');
       const typingEl = document.getElementById('typing-indicator');
@@ -1595,6 +1951,11 @@
       container.scrollTop = container.scrollHeight;
     }
 
+    /**
+     * Adds a system notification message to the chat (e.g. "Connected!",
+     * "Agent has joined"). Styled differently from user/AI messages.
+     * @param {string} text - System message text
+     */
     function addSystemMessage(text) {
       const container = document.getElementById('chat-messages');
       const typingEl = document.getElementById('typing-indicator');
@@ -1605,6 +1966,10 @@
       container.scrollTop = container.scrollHeight;
     }
 
+    /**
+     * Updates the chat mode indicator badge to reflect the current mode.
+     * AI mode shows purple "AI Powered", human mode shows green "Live Agent".
+     */
     function updateModeBadge() {
       const badge = document.getElementById('mode-badge');
       const modeEl = document.getElementById('chat-mode');
@@ -1615,15 +1980,26 @@
       }
     }
 
+    /**
+     * Escapes HTML special characters in text to prevent XSS.
+     * Uses the browser's built-in textContent/innerHTML conversion.
+     * @param {string} text - Raw text to escape
+     * @returns {string} HTML-safe escaped string
+     */
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    // --- Init ---
+    // ================================================================
+    // Initialization
+    // ================================================================
+
+    // Run initial server health check and establish WebSocket connection
     checkServer();
     connectWS();
+    // Poll server health every 30 seconds to keep status indicator updated
     setInterval(checkServer, 30000);
   </script>
 </body>

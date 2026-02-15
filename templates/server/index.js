@@ -1,3 +1,13 @@
+/**
+ * @file index.js — Express + WebSocket server entry point for AIChatDesk
+ * @description Initializes the HTTP server with middleware chain, mounts API routes,
+ *   sets up WebSocket support, and runs database migrations on startup.
+ *   Middleware order: body parsing -> CORS -> rate limiting -> bot detection.
+ *   Routes are mounted under /api/* for all REST endpoints.
+ * @requires express
+ * @requires ws (via ./websocket)
+ * @requires mongoose (via ./db/connection)
+ */
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -12,13 +22,17 @@ const { initWebSocket } = require('./websocket');
 const app = express();
 const server = http.createServer(app);
 
-// Middleware
+// Body parsing middleware — must come before route handlers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// CORS middleware — validates origins from AICHATDESK_CORS_ORIGIN env var
 app.use(corsMiddleware);
 
-// Security middleware (applied to all routes)
+// Rate limiting — per-IP request throttling (15-min window, 1000 req default)
 app.use(rateLimiter);
+
+// Bot detection — flags/blocks suspicious user agents and rapid-fire requests
 app.use(botDetection);
 
 // Health check
@@ -46,20 +60,20 @@ if (fs.existsSync(dashboardPath)) {
   console.log('Dashboard embedded mode enabled at /aichatdesk/dashboard');
 }
 
-// Routes (placeholders for Phase 2+)
-app.use('/api/chat', require('./routes/chat')); // Phase 3
-app.use('/api/ai', require('./routes/ai')); // Phase 2
-app.use('/api/agents', require('./routes/agents')); // Phase 4
-app.use('/api/knowledge', require('./routes/knowledge')); // Phase 2
-app.use('/api/upload', require('./routes/upload')); // Phase 3 - File uploads
-app.use('/api/messages', require('./routes/messages')); // Phase 5 - Message creation with internal notes
-app.use('/api/dashboard', require('./routes/dashboard')); // Phase 6 - Operator dashboard
-app.use('/api/analytics', require('./routes/analytics')); // Phase 6 - Analytics
-app.use('/api/canned-responses', require('./routes/canned-responses')); // Phase 6 - Canned responses
-app.use('/api/categories', require('./routes/categories')); // Workflow categories
-app.use('/api/calendar', require('./routes/calendar')); // Office 365 calendar scheduling
-app.use('/api/search', require('./routes/search')); // Unified search
-app.use('/api/settings', require('./routes/settings')); // Admin settings
+// --- API Route Mounts ---
+app.use('/api/chat', require('./routes/chat'));                     // Chat session lifecycle (create, close, list)
+app.use('/api/ai', require('./routes/ai'));                         // AI inference, sentiment analysis, KB-powered responses
+app.use('/api/agents', require('./routes/agents'));                 // Agent CRUD, auth (login/register), status management
+app.use('/api/knowledge', require('./routes/knowledge'));           // Knowledge base document upload and management
+app.use('/api/upload', require('./routes/upload'));                 // File attachment uploads for chat messages
+app.use('/api/messages', require('./routes/messages'));             // Message creation, retrieval, internal agent notes
+app.use('/api/dashboard', require('./routes/dashboard'));           // Operator dashboard data (active chats, metrics)
+app.use('/api/analytics', require('./routes/analytics'));           // Analytics and reporting endpoints
+app.use('/api/canned-responses', require('./routes/canned-responses')); // Pre-written response templates for agents
+app.use('/api/categories', require('./routes/categories'));         // Workflow category management
+app.use('/api/calendar', require('./routes/calendar'));             // Office 365 calendar scheduling integration
+app.use('/api/search', require('./routes/search'));                 // Unified search across chats, messages, KB
+app.use('/api/settings', require('./routes/settings'));             // Admin settings (key-value configuration)
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -80,7 +94,11 @@ initTeamsBot(app);
 // Start server
 const PORT = process.env.AICHATDESK_PORT || 8001;
 
-// Auto-migrate agents: add systemRole from legacy role field
+/**
+ * One-time migration: populates the systemRole field on agents that only have
+ * the legacy 'role' field. Maps supervisor -> manager, keeps admin/agent as-is.
+ * @returns {Promise<void>}
+ */
 async function migrateAgents() {
   try {
     const { Agent } = require('./db/models');

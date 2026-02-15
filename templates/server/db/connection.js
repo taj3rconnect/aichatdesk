@@ -1,5 +1,18 @@
+/**
+ * @file connection.js — MongoDB connection manager
+ * @description Establishes and manages the Mongoose connection to MongoDB. All AIChatDesk
+ *   collections use the 'aichatdesk_' prefix to avoid conflicts when sharing a database
+ *   with other applications. Includes graceful shutdown on SIGINT.
+ * @requires mongoose
+ */
 const mongoose = require('mongoose');
 
+/**
+ * Connect to MongoDB using the MONGODB_URI environment variable.
+ * Logs discovered aichatdesk_* collections on successful connection.
+ * @returns {Promise<void>}
+ * @throws {Error} If MONGODB_URI is not set or connection fails
+ */
 async function connectDB() {
   try {
     const uri = process.env.MONGODB_URI;

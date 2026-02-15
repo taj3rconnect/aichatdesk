@@ -582,33 +582,78 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
+    /**
+     * AIChatDesk - Customer Chat Widget (Test Page)
+     *
+     * Full-featured customer-facing chat widget with AI-powered responses,
+     * live agent handoff, file uploads, screenshot capture with annotation,
+     * calendar booking, emoji picker, quick actions, workflow categories,
+     * inactivity auto-close, and environment fingerprinting.
+     *
+     * Communicates with the backend via REST API and WebSocket for real-time
+     * message delivery and agent takeover/return notifications.
+     */
+
+    // ==========================================================================
+    // Global State & Configuration
+    // ==========================================================================
+
+    /** @type {string} Base URL for all REST API calls */
     const API = 'http://localhost:8005';
+    /** @type {string} WebSocket endpoint for real-time chat events */
     const WS_URL = 'ws://localhost:8005/ws';
 
+    /** @type {string[]} File extensions blocked from upload for security */
     const BLOCKED_EXTENSIONS = ['.exe','.com','.bat','.cmd','.scr','.pif','.msi','.vbs','.js','.ws','.wsf','.ps1','.sh'];
 
+    /** @type {WebSocket|null} Active WebSocket connection (auto-reconnects on close) */
     let ws = null;
+    /** @type {string|null} Current chat session ID (set after startChat) */
     let sessionId = null;
+    /** @type {string|null} Current chat document ID from MongoDB */
     let chatId = null;
+    /** @type {'ai'|'human'} Current chat mode - AI-powered or live agent */
     let chatMode = 'ai';
+    /** @type {string} Customer name from pre-chat form */
     let userName = '';
+    /** @type {string} Customer email from pre-chat form */
     let userEmail = '';
-    let pendingFiles = []; // files queued for upload
+    /** @type {File[]} Files queued for upload with next message */
+    let pendingFiles = [];
+    /** @type {string|null} Selected ticket type (bug, feature, question, support) */
     let selectedTicketType = null;
+    /** @type {string} User-selected priority level for the chat */
     let selectedPriority = 'medium';
+    /** @type {number} User mood rating 1-5 (1=angry, 5=amazing) */
     let selectedMood = 3;
+    /** @type {string|null} Selected workflow category ID */
     let selectedCategory = null;
 
+    // ==========================================================================
+    // Header Popup Controls (Ticket, Priority, Mood selectors)
+    // ==========================================================================
+
+    /**
+     * Toggle a header popup open/closed, closing all others first.
+     * @param {string} id - DOM element ID of the popup to toggle
+     */
     function toggleHeaderPopup(id) {
       closeAllPopups();
       const popup = document.getElementById(id);
       popup.classList.toggle('open');
     }
 
+    /**
+     * Close all open popups (header popups, emoji picker, quick actions, calendar).
+     */
     function closeAllPopups() {
       document.querySelectorAll('.header-popup, #emoji-picker, #quick-actions, #calendar-popup').forEach(p => p.classList.remove('open'));
     }
 
+    /**
+     * Select a ticket type and visually highlight the chosen option.
+     * @param {string|null} type - Ticket type (bug, feature, question, support)
+     */
     function selectTicket(type) {
       selectedTicketType = type;
       document.querySelectorAll('#ticket-popup .popup-item').forEach(el => {
@@ -616,6 +661,10 @@
       });
       document.getElementById('ticket-popup').classList.remove('open');
     }
+    /**
+     * Select a priority level and highlight the chosen option.
+     * @param {string} level - Priority level (low, medium, high)
+     */
     function selectPriority(level) {
       selectedPriority = level;
       document.querySelectorAll('#priority-popup .popup-item').forEach(el => {
@@ -623,6 +672,10 @@
       });
       document.getElementById('priority-popup').classList.remove('open');
     }
+    /**
+     * Select a mood value (1-5) and highlight the chosen option.
+     * @param {number} val - Mood rating (1=angry, 2=confused, 3=neutral, 4=happy, 5=amazing)
+     */
     function selectMood(val) {
       selectedMood = val;
       const labels = ['', 'angry', 'confused', 'neutral', 'happy', 'amazing'];
@@ -632,7 +685,15 @@
       document.getElementById('mood-popup').classList.remove('open');
     }
 
-    // --- Environment capture ---
+    // ==========================================================================
+    // Environment Capture
+    // ==========================================================================
+
+    /**
+     * Capture a comprehensive snapshot of the user's browser environment.
+     * Sent with the initial chat creation request for diagnostic purposes.
+     * @returns {Object} Environment data including browser, screen, network, hardware info
+     */
     function captureEnvironment() {
       return {
         browser: navigator.userAgent,
@@ -662,14 +723,25 @@
       };
     }
 
-    // --- Emoji data ---
+    // ==========================================================================
+    // Emoji Picker Data
+    // ==========================================================================
+
+    /** @type {Object.<string, string[]>} Emoji categories mapped to arrays of emoji characters */
     const emojiData = {
       'Smileys': ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','😉','😌','😍','🥰','😘','😗','😙','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','😐','😑','😶','😏','😒','🙄','😬','😮‍💨','🤥'],
       'Gestures': ['👍','👎','👋','🤝','🙏','💪','👏','🤞','✌️','🤟','🤙','👌','🫡','🫶','❤️','🔥','⭐','✅','❌','⚡','💯'],
       'Objects': ['💻','📱','📧','📎','📝','🔑','🔒','💡','📊','🎯','🛠️','⚙️','📦','🚀','💬','📞','🏷️','💳','🧾','📋']
     };
 
-    // --- Server health check ---
+    // ==========================================================================
+    // Server Health Check
+    // ==========================================================================
+
+    /**
+     * Poll the backend /health endpoint and update the connection status indicator.
+     * Called on init and every 30 seconds via setInterval.
+     */
     async function checkServer() {
       try {
         const res = await fetch(`${API}/health`);
@@ -684,7 +756,15 @@
       }
     }
 
-    // --- WebSocket ---
+    // ==========================================================================
+    // WebSocket Connection & Message Handling
+    // ==========================================================================
+
+    /**
+     * Establish WebSocket connection to the server.
+     * On open, joins the current chat session if one exists.
+     * Auto-reconnects after 3 seconds on close.
+     */
     function connectWS() {
       try {
         ws = new WebSocket(WS_URL);
@@ -703,10 +783,23 @@
       } catch {}
     }
 
+    /**
+     * Route incoming WebSocket messages to appropriate handlers.
+     * Resets the inactivity timer on every message received.
+     *
+     * Supported message types:
+     * - chat.message: New message from AI or agent (ignores echoed user messages)
+     * - agent.takeover: Agent took control, switches mode to 'human'
+     * - agent.return: Agent returned chat to AI, switches mode to 'ai'
+     *
+     * @param {Object} data - Parsed WebSocket message payload
+     * @param {string} data.type - Message type identifier
+     */
     function handleWSMessage(data) {
       resetInactivityTimer();
       switch (data.type) {
         case 'chat.message':
+          // Only display messages from AI/agent, not echoed user messages
           if (data.message && data.message.sender !== 'user') {
             addMessage(data.message.content, data.message.sender, data.message.senderName);
           }
@@ -722,9 +815,17 @@
       }
     }
 
+    /** Toggle the chat window open/closed when the floating bubble is clicked. */
     function toggleChat() { document.getElementById('chat-window').classList.toggle('open'); }
 
-    // --- Workflow categories ---
+    // ==========================================================================
+    // Workflow Categories
+    // ==========================================================================
+
+    /**
+     * Fetch available workflow categories from the API and render as selectable buttons.
+     * Categories allow the AI to use different system prompts based on user intent.
+     */
     async function loadCategories() {
       try {
         const res = await fetch(`${API}/api/categories`);
@@ -740,6 +841,12 @@
       }
     }
 
+    /**
+     * Select a workflow category, notify the backend, and trigger an AI greeting.
+     * The selected category changes the AI's system prompt for this conversation.
+     * @param {string} catId - Category document ID
+     * @param {HTMLElement} btn - The clicked button element for visual selection
+     */
     async function selectCategory(catId, btn) {
       selectedCategory = catId;
       document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
@@ -773,7 +880,15 @@
       }
     }
 
-    // --- Start chat ---
+    // ==========================================================================
+    // Chat Lifecycle (Start, Send, End)
+    // ==========================================================================
+
+    /**
+     * Initialize a new chat session via the API.
+     * Sends user info, ticket metadata, mood, priority, and environment snapshot.
+     * Joins the WebSocket room, loads categories, and triggers the initial AI greeting.
+     */
     async function startChat() {
       userName = document.getElementById('user-name').value.trim();
       userEmail = document.getElementById('user-email').value.trim();
@@ -834,7 +949,11 @@
       } catch (err) { alert('Failed to connect: ' + err.message); }
     }
 
-    // --- Upload files ---
+    /**
+     * Upload an array of files to the server via multipart form data.
+     * @param {File[]} files - Files to upload
+     * @returns {Promise<Object[]>} Array of uploaded file metadata (url, filename, type, size)
+     */
     async function uploadFiles(files) {
       const formData = new FormData();
       for (const f of files) formData.append('files', f);
@@ -848,7 +967,10 @@
       }
     }
 
-    // --- End chat session ---
+    /**
+     * End the current chat session. Notifies the backend, disables input,
+     * clears the inactivity timer, and auto-closes the chat window after 1.5s.
+     */
     async function endChatSession() {
       if (!sessionId) return;
       clearInactivityTimer();
@@ -866,14 +988,26 @@
       setTimeout(() => { document.getElementById('chat-window').classList.remove('open'); }, 1500);
     }
 
-    // Close chat window AND end the session
+    /**
+     * Close the chat window UI AND end the backend session.
+     * Called when user clicks the X close button on the chat header.
+     */
     function closeAndEndChat() {
       document.getElementById('chat-window').classList.remove('open');
       if (chatId) endChatSession();
     }
 
-    // --- Inactivity timer (3 min) ---
+    // ==========================================================================
+    // Inactivity Timer (Auto-close after 3 minutes)
+    // ==========================================================================
+
+    /** @type {number|null} Handle for the 3-minute inactivity timeout */
     let inactivityTimer = null;
+
+    /**
+     * Reset the inactivity timer. Called on every user action and incoming message.
+     * After 3 minutes of inactivity, the chat session is automatically ended.
+     */
     function resetInactivityTimer() {
       clearInactivityTimer();
       if (!chatId) return;
@@ -882,18 +1016,24 @@
         endChatSession();
       }, 3 * 60 * 1000);
     }
+    /** Clear the inactivity timer if one is running. */
     function clearInactivityTimer() {
       if (inactivityTimer) { clearTimeout(inactivityTimer); inactivityTimer = null; }
     }
 
-    // End chat on tab/window close
+    // End chat on tab/window close using sendBeacon for reliability during unload
     window.addEventListener('beforeunload', () => {
       if (sessionId) {
         navigator.sendBeacon(`${API}/api/messages/chat/${sessionId}/end`, JSON.stringify({}));
       }
     });
 
-    // --- Send message ---
+    /**
+     * Send a chat message. Handles text, file uploads, and special stop/end commands.
+     * Flow: reset inactivity -> check stop commands -> upload files -> display user message
+     * -> save to DB -> query AI (if in AI mode) -> display AI response.
+     * If AI confidence is low, automatically requests human agent handoff.
+     */
     async function sendMessage() {
       resetInactivityTimer();
       const input = document.getElementById('chat-input');
@@ -902,7 +1042,7 @@
       if (!text && !hasFiles) return;
       if (!chatId) return;
 
-      // Check for stop/end commands
+      // Check for stop/end commands - regex matches common exit keywords
       if (/^(stop|end|bye|close|quit|exit)$/i.test(text)) {
         input.value = '';
         addMessage(text, 'user');
@@ -966,7 +1106,15 @@
       }
     }
 
-    // --- Blocked extension check ---
+    // ==========================================================================
+    // File Upload & Attachment Handling
+    // ==========================================================================
+
+    /**
+     * Check if a file has a blocked extension (executables, scripts, etc.).
+     * @param {File} file - File to check
+     * @returns {boolean} True if the file extension is in the blocked list
+     */
     function isBlockedFile(file) {
       const name = file.name.toLowerCase();
       const dotIdx = name.lastIndexOf('.');
@@ -975,7 +1123,10 @@
       return BLOCKED_EXTENSIONS.includes(ext);
     }
 
-    // --- File handling ---
+    /**
+     * Handle file input change event. Validates each file against blocked extensions.
+     * @param {Event} e - File input change event
+     */
     function handleFileSelect(e) {
       const files = Array.from(e.target.files);
       files.forEach(f => {
@@ -988,6 +1139,10 @@
       e.target.value = ''; // reset so same file can be re-selected
     }
 
+    /**
+     * Add a file to the pending upload queue. Enforces max 5 files and 10MB size limit.
+     * @param {File} file - File to queue for upload
+     */
     function addPendingFile(file) {
       if (isBlockedFile(file)) {
         alert(`File "${file.name}" is not allowed. Blocked file type.`);
@@ -999,16 +1154,26 @@
       renderAttachmentPreview();
     }
 
+    /**
+     * Remove a file from the pending queue by index.
+     * @param {number} idx - Index of the file to remove
+     */
     function removePendingFile(idx) {
       pendingFiles.splice(idx, 1);
       renderAttachmentPreview();
     }
 
+    /** Clear all pending file attachments and reset the preview area. */
     function clearAttachments() {
       pendingFiles = [];
       renderAttachmentPreview();
     }
 
+    /**
+     * Render thumbnail previews for queued files in the attachment bar.
+     * Shows image thumbnails for images, file extension icons for other types.
+     * System-info TXT files are hidden from the preview but still uploaded.
+     */
     function renderAttachmentPreview() {
       const el = document.getElementById('attachment-preview');
       if (pendingFiles.length === 0) {
@@ -1031,7 +1196,8 @@
       }).join('');
     }
 
-    // --- Clipboard paste (screenshots) ---
+    // Clipboard paste handler: intercepts pasted images (e.g., Ctrl+V screenshots)
+    // and adds them as pending file attachments along with a system-info diagnostic file
     document.addEventListener('paste', (e) => {
       if (!chatId) return;
       const items = e.clipboardData?.items;
@@ -1050,7 +1216,13 @@
       }
     });
 
-    // --- Emoji picker ---
+    // ==========================================================================
+    // Emoji Picker
+    // ==========================================================================
+
+    /**
+     * Toggle the emoji picker popup. Lazily builds the picker HTML on first open.
+     */
     function toggleEmoji() {
       const picker = document.getElementById('emoji-picker');
       const wasOpen = picker.classList.contains('open');
@@ -1069,6 +1241,10 @@
       picker.classList.add('open');
     }
 
+    /**
+     * Insert an emoji at the current cursor position in the chat input.
+     * @param {string} emoji - Emoji character to insert
+     */
     function insertEmoji(emoji) {
       const input = document.getElementById('chat-input');
       const pos = input.selectionStart || input.value.length;
@@ -1078,16 +1254,31 @@
       document.getElementById('emoji-picker').classList.remove('open');
     }
 
-    // --- Enhanced Screenshot annotation ---
-    let annoBaseImage = null;
-    let annoDrawing = false;
-    let annoCtx = null;
-    let annotationMode = 'pen'; // 'pen' | 'text' | 'circle'
-    let annotationColor = '#e74c3c';
-    let annotations = []; // { type: 'pen'|'text'|'circle', data: ..., color: string }
-    let currentPenPath = []; // points for current pen stroke
-    let circleStart = null; // {x, y} for circle drag start
+    // ==========================================================================
+    // Screenshot Capture & Annotation Tools
+    // ==========================================================================
 
+    /** @type {ImageData|null} Original screenshot pixel data for redraw-on-undo */
+    let annoBaseImage = null;
+    /** @type {boolean} Whether user is currently drawing (mouse is down) */
+    let annoDrawing = false;
+    /** @type {CanvasRenderingContext2D|null} 2D canvas context for annotation drawing */
+    let annoCtx = null;
+    /** @type {'pen'|'text'|'circle'} Current annotation tool mode */
+    let annotationMode = 'pen';
+    /** @type {string} Current annotation drawing color (hex) */
+    let annotationColor = '#e74c3c';
+    /** @type {Array<{type: string, data: *, color: string}>} Stack of all annotations for undo support */
+    let annotations = [];
+    /** @type {Array<{x: number, y: number}>} Points for the current pen stroke being drawn */
+    let currentPenPath = [];
+    /** @type {{x: number, y: number}|null} Starting coordinates for circle/ellipse drag */
+    let circleStart = null;
+
+    /**
+     * Switch the active annotation tool and update toolbar button highlights.
+     * @param {'pen'|'text'|'circle'} mode - Annotation tool to activate
+     */
     function setAnnotationMode(mode) {
       annotationMode = mode;
       document.getElementById('anno-pen-btn').classList.toggle('active', mode === 'pen');
@@ -1098,6 +1289,10 @@
       canvas.style.cursor = mode === 'text' ? 'text' : 'crosshair';
     }
 
+    /**
+     * Set the active annotation color and highlight the corresponding color dot.
+     * @param {string} color - Hex color string (e.g., '#e74c3c')
+     */
     function setAnnotationColor(color) {
       annotationColor = color;
       document.querySelectorAll('.anno-color-dot').forEach(dot => {
@@ -1106,6 +1301,11 @@
       });
     }
 
+    /**
+     * Capture a screenshot of the current page using html2canvas.
+     * Temporarily hides the chat widget to avoid capturing it, then
+     * opens the annotation overlay for the user to mark up the screenshot.
+     */
     function captureScreenshot() {
       if (!chatId) { alert('Please start a chat first'); return; }
       const chatWindow = document.getElementById('chat-window');
@@ -1125,6 +1325,11 @@
       });
     }
 
+    /**
+     * Open the annotation overlay with the captured screenshot.
+     * Scales the image to fit 90% of viewport, sets up mouse and touch handlers.
+     * @param {HTMLCanvasElement} sourceCanvas - Canvas containing the captured screenshot
+     */
     function openAnnotation(sourceCanvas) {
       const overlay = document.getElementById('annotation-overlay');
       const annoCanvas = document.getElementById('annotation-canvas');
@@ -1177,6 +1382,12 @@
       overlay.classList.add('open');
     }
 
+    /**
+     * Handle mouse/touch down on the annotation canvas.
+     * Starts drawing for pen/circle modes, shows text input for text mode.
+     * @param {number} x - X coordinate relative to canvas
+     * @param {number} y - Y coordinate relative to canvas
+     */
     function handleAnnoMouseDown(x, y) {
       if (annotationMode === 'pen') {
         annoDrawing = true;
@@ -1191,6 +1402,12 @@
       }
     }
 
+    /**
+     * Handle mouse/touch move on the annotation canvas.
+     * For pen: draws a line segment. For circle: redraws all + previews ellipse.
+     * @param {number} x - X coordinate relative to canvas
+     * @param {number} y - Y coordinate relative to canvas
+     */
     function handleAnnoMouseMove(x, y) {
       if (!annoDrawing) return;
       if (annotationMode === 'pen') {
@@ -1208,6 +1425,12 @@
       }
     }
 
+    /**
+     * Handle mouse/touch up on the annotation canvas.
+     * Finalizes the current pen stroke or circle annotation and adds it to the stack.
+     * @param {number} x - X coordinate relative to canvas
+     * @param {number} y - Y coordinate relative to canvas
+     */
     function handleAnnoMouseUp(x, y) {
       if (!annoDrawing) return;
       annoDrawing = false;
@@ -1221,8 +1444,15 @@
       }
     }
 
-    let activeTextCommit = null; // reference to current commit function
+    /** @type {Function|null} Reference to the current text annotation commit function */
+    let activeTextCommit = null;
 
+    /**
+     * Show an inline text input at the specified canvas position.
+     * Commits text annotation on Enter, cancels on Escape.
+     * @param {number} x - X position on canvas for text placement
+     * @param {number} y - Y position on canvas for text placement
+     */
     function showTextInput(x, y) {
       // Commit any previous text first
       if (activeTextCommit) { activeTextCommit(); activeTextCommit = null; }
@@ -1266,6 +1496,15 @@
       activeTextCommit = commitText;
     }
 
+    /**
+     * Draw an ellipse defined by two corner points (bounding box).
+     * @param {number} x1 - Start X coordinate
+     * @param {number} y1 - Start Y coordinate
+     * @param {number} x2 - End X coordinate
+     * @param {number} y2 - End Y coordinate
+     * @param {string} color - Stroke color
+     * @param {boolean} permanent - Whether this is a final (not preview) draw
+     */
     function drawEllipseFromPoints(x1, y1, x2, y2, color, permanent) {
       const cx = (x1 + x2) / 2;
       const cy = (y1 + y2) / 2;
@@ -1279,6 +1518,10 @@
       annoCtx.stroke();
     }
 
+    /**
+     * Redraw all annotations from scratch on the base screenshot image.
+     * Used after undo, circle preview, or any state change to the annotations stack.
+     */
     function redrawAnnotations() {
       if (!annoBaseImage || !annoCtx) return;
       const canvas = document.getElementById('annotation-canvas');
@@ -1309,12 +1552,24 @@
       }
     }
 
+    /** Undo the last annotation by popping from the stack and redrawing. */
     function annotationUndo() {
       if (annotations.length === 0) return;
       annotations.pop();
       redrawAnnotations();
     }
 
+    // ==========================================================================
+    // System Info Generation (Diagnostic Report)
+    // ==========================================================================
+
+    /**
+     * Generate a comprehensive system information report as a formatted text string.
+     * Includes device type, OS, browser, screen, hardware, network, performance,
+     * page context, browser features, GPU info, media codec support, and misc settings.
+     * Attached alongside screenshots for debugging customer issues.
+     * @returns {string} Multi-line formatted system info report
+     */
     function generateSystemInfo() {
       const nav = navigator;
       const scr = screen;
@@ -1519,12 +1774,20 @@
       return lines.join('\n');
     }
 
+    /**
+     * Create a File object containing the system info report for upload.
+     * @returns {File} Text file named 'system-info-{timestamp}.txt'
+     */
     function createSystemInfoFile() {
       const info = generateSystemInfo();
       const blob = new Blob([info], { type: 'text/plain' });
       return new File([blob], `system-info-${Date.now()}.txt`, { type: 'text/plain' });
     }
 
+    /**
+     * Finalize the annotation: export canvas as PNG, add to pending files
+     * along with a system info diagnostic file, then close the overlay.
+     */
     function annotationDone() {
       const annoCanvas = document.getElementById('annotation-canvas');
       annoCanvas.toBlob(blob => {
@@ -1537,11 +1800,13 @@
       }, 'image/png');
     }
 
+    /** Clear all annotations from the canvas (keeps the base screenshot). */
     function annotationClear() {
       annotations = [];
       redrawAnnotations();
     }
 
+    /** Cancel annotation and close the overlay without saving. Resets all annotation state. */
     function annotationCancel() {
       document.getElementById('annotation-overlay').classList.remove('open');
       document.getElementById('annotation-text-input').style.display = 'none';
@@ -1552,11 +1817,20 @@
       circleStart = null;
     }
 
-    // --- Calendar scheduling ---
+    // ==========================================================================
+    // Calendar Scheduling / Book Demo
+    // ==========================================================================
+
+    /** @type {string|null} Selected meeting type ('call', 'demo', 'meeting') */
     let calMeetingType = null;
-    let calSlotData = []; // { days: [...] }
+    /** @type {Array<{label: string, slots: Array}>} Available calendar days and their time slots */
+    let calSlotData = [];
+    /** @type {{start: string, end: string, display: string}|null} Currently selected time slot */
     let calSelectedSlot = null;
 
+    /**
+     * Open the calendar popup and reset to step 1 (meeting type selection).
+     */
     function openCalendarPopup() {
       closeAllPopups();
       // Reset to step 1
@@ -1572,10 +1846,15 @@
       document.getElementById('calendar-popup').classList.add('open');
     }
 
+    /** Close the calendar popup. */
     function closeCalendarPopup() {
       document.getElementById('calendar-popup').classList.remove('open');
     }
 
+    /**
+     * Select a meeting type and advance to the time slot selection step.
+     * @param {string} type - Meeting type ('call', 'demo', 'meeting')
+     */
     function selectMeetingType(type) {
       calMeetingType = type;
       document.querySelectorAll('.cal-type-btn').forEach(b => b.classList.remove('selected'));
@@ -1587,6 +1866,10 @@
       loadCalendarSlots();
     }
 
+    /**
+     * Shortcut to open calendar popup directly in 'demo' mode.
+     * Skips the meeting type selection step and goes straight to slot selection.
+     */
     function bookDemo() {
       closeAllPopups();
       calMeetingType = 'demo';
@@ -1602,6 +1885,11 @@
       loadCalendarSlots();
     }
 
+    /**
+     * Fetch available calendar time slots from the backend.
+     * Renders date tabs and slot buttons for the first available day.
+     * @param {string} [fromDate] - Optional ISO date string to start from
+     */
     async function loadCalendarSlots(fromDate) {
       const container = document.getElementById('cal-slots-container');
       container.innerHTML = '<div class="cal-loading">Loading available times...</div>';
@@ -1643,6 +1931,10 @@
       }
     }
 
+    /**
+     * Render time slot buttons for a specific day in the calendar popup.
+     * @param {number} dayIndex - Index into calSlotData array
+     */
     function renderCalSlots(dayIndex) {
       const container = document.getElementById('cal-slots-container');
       const day = calSlotData[dayIndex];
@@ -1660,6 +1952,13 @@
       container.innerHTML = html;
     }
 
+    /**
+     * Select a time slot and advance to the booking confirmation step.
+     * @param {HTMLElement} el - The clicked slot button element
+     * @param {string} start - ISO datetime string for slot start
+     * @param {string} end - ISO datetime string for slot end
+     * @param {string} display - Human-readable display string for the slot
+     */
     function selectCalSlot(el, start, end, display) {
       calSelectedSlot = { start, end, display };
       document.querySelectorAll('.cal-slot').forEach(s => s.classList.remove('selected'));
@@ -1676,6 +1975,10 @@
       document.getElementById('cal-step-confirm').style.display = '';
     }
 
+    /**
+     * Navigate backward in the calendar booking wizard.
+     * @param {'type'|'slots'} step - The step to go back to
+     */
     function calGoBack(step) {
       if (step === 'type') {
         document.getElementById('cal-step-slots').style.display = 'none';
@@ -1687,6 +1990,11 @@
       }
     }
 
+    /**
+     * Submit the calendar booking to the backend API.
+     * Sends meeting type, time slot, customer info, and optional phone/company.
+     * On success, shows confirmation with meeting link and adds a system message.
+     */
     async function confirmCalendarBooking() {
       const btn = document.querySelector('#cal-step-confirm .cal-confirm');
       btn.disabled = true;
@@ -1740,7 +2048,11 @@
       }
     }
 
-    // --- Quick actions ---
+    // ==========================================================================
+    // Quick Actions Menu
+    // ==========================================================================
+
+    /** Toggle the quick actions dropdown menu. */
     function toggleQuickActions() {
       const menu = document.getElementById('quick-actions');
       const wasOpen = menu.classList.contains('open');
@@ -1748,6 +2060,10 @@
       if (!wasOpen) menu.classList.add('open');
     }
 
+    /**
+     * Execute a quick action by pre-filling the chat input with a template.
+     * @param {'bug'|'feedback'|'callback'} type - Quick action type
+     */
     function quickAction(type) {
       document.getElementById('quick-actions').classList.remove('open');
       if (!chatId) { alert('Please start a chat first'); return; }
@@ -1772,15 +2088,24 @@
       }
     }
 
-    // Close all popups on outside click
+    // Close all popups when clicking outside of any popup area
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.header-popup, #emoji-picker, #quick-actions, #calendar-popup, .header-icon-btn')) {
         closeAllPopups();
       }
     });
 
-    // --- UI helpers ---
-    // --- Markdown-like formatting for AI messages ---
+    // ==========================================================================
+    // UI Helpers & Message Rendering
+    // ==========================================================================
+
+    /**
+     * Convert markdown-like text from AI responses into HTML.
+     * Supports: headers (# ## ###), bold, italic, inline code, code blocks,
+     * unordered lists (- or *), ordered lists (1.), blockquotes (>), and links.
+     * @param {string} text - Raw text with markdown-like formatting
+     * @returns {string} Rendered HTML string
+     */
     function formatAIMessage(text) {
       if (!text) return '';
 
@@ -1863,7 +2188,13 @@
       return html;
     }
 
-    // Inline formatting: bold, italic, code, links
+    /**
+     * Apply inline markdown formatting: bold (**), italic (*), inline code (`).
+     * Escapes HTML first for XSS safety, then applies formatting patterns.
+     * Uses negative lookbehind/lookahead to distinguish single * (italic) from ** (bold).
+     * @param {string} text - Raw text line to format
+     * @returns {string} HTML-formatted string
+     */
     function inlineFormat(text) {
       let s = escapeHtml(text);
       // Inline code
@@ -1877,6 +2208,16 @@
       return s;
     }
 
+    /**
+     * Add a chat message bubble to the messages container.
+     * Renders differently based on sender type (user, ai, agent, system).
+     * AI/agent messages are formatted with markdown; user messages are plain text.
+     * @param {string} text - Message content
+     * @param {'user'|'ai'|'agent'|'system'} sender - Message sender type
+     * @param {string} [senderName] - Display name for agent messages
+     * @param {number} [confidence] - AI confidence score (0-1), shown as percentage
+     * @param {Object[]} [attachments] - Array of uploaded file metadata to render
+     */
     function addMessage(text, sender, senderName, confidence, attachments) {
       const container = document.getElementById('chat-messages');
       const typingEl = document.getElementById('typing-indicator');
@@ -1915,6 +2256,10 @@
       container.scrollTop = container.scrollHeight;
     }
 
+    /**
+     * Add a system notification message (centered, italicized) to the chat.
+     * @param {string} text - System message text
+     */
     function addSystemMessage(text) {
       const container = document.getElementById('chat-messages');
       const typingEl = document.getElementById('typing-indicator');
@@ -1925,6 +2270,9 @@
       container.scrollTop = container.scrollHeight;
     }
 
+    /**
+     * Update the mode badge in the chat header to reflect current mode (AI/Human).
+     */
     function updateModeBadge() {
       const badge = document.getElementById('mode-badge2');
       const modeEl = document.getElementById('chat-mode');
@@ -1935,13 +2283,21 @@
       }
     }
 
+    /**
+     * Escape HTML special characters to prevent XSS injection.
+     * Uses DOM textContent/innerHTML trick for safe escaping.
+     * @param {string} text - Raw text to escape
+     * @returns {string} HTML-escaped string
+     */
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    // --- Init ---
+    // ==========================================================================
+    // Initialization
+    // ==========================================================================
     checkServer();
     connectWS();
     setInterval(checkServer, 30000);

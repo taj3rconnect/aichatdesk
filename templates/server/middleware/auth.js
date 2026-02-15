@@ -1,3 +1,12 @@
+/**
+ * @file auth.js — JWT authentication and role-based authorization middleware
+ * @description Provides three auth utilities:
+ *   - authenticateAgent: Validates Bearer JWT tokens and attaches decoded agent to req.agent
+ *   - requireRole: Factory that restricts endpoints to specific systemRole values (admin, manager, agent)
+ *   - canManageAgent: Checks if a requesting agent manages any of the target agent's teams
+ * @requires jsonwebtoken
+ * @requires ../db/models (Role)
+ */
 const jwt = require('jsonwebtoken');
 const { Role } = require('../db/models');
 

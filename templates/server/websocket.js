@@ -1,3 +1,29 @@
+/**
+ * @file websocket.js — WebSocket server for real-time chat communication
+ * @description Manages bidirectional WebSocket connections between chat widgets and
+ *   the operator dashboard. Handles message routing, typing indicators, agent takeover
+ *   events, and automatic chat closure on widget disconnect.
+ *
+ *   Supported message types (client -> server):
+ *   - chat.join         — Widget joins a chat session (sets sessionId on connection)
+ *   - chat.message      — Chat message from user/agent (triggers sentiment analysis)
+ *   - typing.start      — Typing indicator started
+ *   - typing.stop       — Typing indicator stopped
+ *   - dashboard.connect — Dashboard client identifies itself for targeted broadcasts
+ *   - agent.takeover    — Agent takes over from AI (broadcast to session)
+ *   - agent.return      — Agent returns chat to AI (broadcast to session)
+ *   - agent.note        — Internal agent note (logged, not broadcast to users)
+ *
+ *   Server -> client events:
+ *   - agent.takeover    — Broadcast to session clients when agent takes over
+ *   - agent.return      — Broadcast to session clients when agent returns to AI
+ *   - chat.closed       — Broadcast to dashboard when chat auto-closes
+ *   - error             — Error response for unknown/failed messages
+ *
+ * @requires ws
+ * @requires ./db/models (Message, Chat)
+ * @requires node-fetch (for sentiment analysis API calls)
+ */
 const { Server } = require('ws');
 const { Message, Chat } = require('./db/models');
 

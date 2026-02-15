@@ -887,13 +887,33 @@
   </div>
 
   <script>
-    // Theme toggle
+    /**
+     * AIChatDesk - Agent Dashboard (Test Page)
+     *
+     * Full-featured agent dashboard for managing customer chat sessions.
+     * Includes JWT authentication, multi-chat split-screen (up to 6 panels),
+     * AI copilot suggestions, agent takeover/return, knowledge base management,
+     * workflow categories CRUD, user/role management with invite links,
+     * global search, calendar/O365 integration status, internal notes,
+     * profanity highlighting, dark mode, analytics, and canned responses.
+     *
+     * Communicates with the backend via REST API (with Bearer token auth)
+     * and WebSocket for real-time chat event notifications.
+     */
+
+    // ==========================================================================
+    // Dark Mode Toggle
+    // ==========================================================================
+
+    /**
+     * Toggle dark mode on/off. Persists preference in localStorage.
+     */
     function toggleTheme() {
       const isDark = document.body.classList.toggle('dark-mode');
       localStorage.setItem('aichatdesk-theme', isDark ? 'dark' : 'light');
       document.getElementById('theme-toggle').textContent = isDark ? '🌙' : '☀️';
     }
-    // Apply saved theme on load
+    // Apply saved theme preference on page load (IIFE)
     (function() {
       const saved = localStorage.getItem('aichatdesk-theme');
       if (saved === 'dark') {
@@ -905,19 +925,40 @@
       }
     })();
 
+    // ==========================================================================
+    // Global State & Configuration
+    // ==========================================================================
+
+    /** @type {string} Base URL for all REST API calls */
     const API = 'http://localhost:8005';
+    /** @type {string|null} JWT authentication token (set after login) */
     let token = null;
+    /** @type {string|null} Current logged-in agent's MongoDB ID */
     let agentId = null;
+    /** @type {string} Current agent's display name */
     let agentName = '';
-    let selectedChat = null; // { sessionId, chatId, mode, userName, userEmail }
+    /** @type {{sessionId: string, chatId: string, mode: string, userName: string, userEmail: string}|null} Currently focused/selected chat */
+    let selectedChat = null;
+    /** @type {Array} Full list of chat sessions from the API */
     let chatList = [];
+    /** @type {WebSocket|null} Active WebSocket connection (auto-reconnects on close) */
     let ws = null;
 
-    // Session stats
+    // --- Session Stats ---
+    /** @type {number|null} Timestamp when agent logged in (for elapsed timer) */
     let sessionStartTime = null;
+    /** @type {number} Count of chats attended during this session */
     let sessionChatsAttended = 0;
+    /** @type {number} Count of agent responses sent during this session */
     let sessionResponsesSent = 0;
 
+    // ==========================================================================
+    // Session Timer & Stats
+    // ==========================================================================
+
+    /**
+     * Update the current date/time display in the header (MM/DD - H:MM AM/PM format).
+     */
     function updateDateTime() {
       const now = new Date();
       const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -929,6 +970,9 @@
       document.getElementById('current-datetime').textContent = mm + '/' + dd + ' - ' + h + ':' + min + ' ' + ampm;
     }
 
+    /**
+     * Update the session elapsed time display (HH:MM format).
+     */
     function updateSessionElapsed() {
       if (!sessionStartTime) return;
       const diff = Math.floor((Date.now() - sessionStartTime) / 1000);
@@ -937,6 +981,10 @@
       document.getElementById('session-elapsed').textContent = hrs + ':' + mins;
     }
 
+    /**
+     * Initialize session timer. Starts the elapsed clock and periodic updates
+     * (date/time every 10s, elapsed every 30s). Called after successful login.
+     */
     function startSessionTimer() {
       sessionStartTime = Date.now();
       sessionChatsAttended = 0;
@@ -947,16 +995,27 @@
       setInterval(updateSessionElapsed, 30000);
     }
 
+    /** Increment and display the chats-attended counter. */
     function incrementChatsAttended() {
       sessionChatsAttended++;
       document.getElementById('stat-chats-attended').textContent = sessionChatsAttended;
     }
 
+    /** Increment and display the responses-sent counter. */
     function incrementResponsesSent() {
       sessionResponsesSent++;
       document.getElementById('stat-responses-sent').textContent = sessionResponsesSent;
     }
 
+    // ==========================================================================
+    // Office 365 Status Check
+    // ==========================================================================
+
+    /**
+     * Check Office 365 calendar API connectivity and update the status indicator.
+     * Shows 'Connected', email prefix, or 'Not configured' based on server response.
+     * @param {string} [email] - Agent's Office 365 email address
+     */
     async function updateO365Status(email) {
       const el = document.getElementById('o365-status');
       if (!email) {
@@ -989,10 +1048,19 @@
       }
     }
 
-    // Multi-chat split screen state
-    let activeChats = []; // Array of { sessionId, chatId, mode, userName, userEmail }
+    // ==========================================================================
+    // Multi-Chat Split Screen State
+    // ==========================================================================
+
+    /** @type {Array<{sessionId: string, chatId: string, mode: string, userName: string, userEmail: string, userUrl: string}>} Currently open chat panels */
+    let activeChats = [];
+    /** @type {number} Maximum number of simultaneous chat panels */
     const MAX_SPLIT = 6;
 
+    /**
+     * Append a timestamped message to the activity log panel.
+     * @param {string} msg - Log message to display
+     */
     function log(msg) {
       const el = document.getElementById('log');
       const time = new Date().toLocaleTimeString();
@@ -1000,7 +1068,15 @@
       el.scrollTop = el.scrollHeight;
     }
 
-    // --- Password visibility toggle ---
+    // ==========================================================================
+    // Authentication (Login, Logout, Auto-login)
+    // ==========================================================================
+
+    /**
+     * Toggle password field visibility between text and password type.
+     * @param {string} inputId - DOM ID of the password input
+     * @param {HTMLElement} btn - Toggle button element (updates icon)
+     */
     function togglePasswordVisibility(inputId, btn) {
       const input = document.getElementById(inputId);
       if (input.type === 'password') {
@@ -1012,13 +1088,14 @@
       }
     }
 
-    // --- Forgot password / login form toggle ---
+    /** Show the forgot password form, hiding the login form. */
     function showForgotPassword() {
       document.getElementById('login-form-section').classList.add('hidden');
       document.getElementById('login-form-section').style.display = 'none';
       document.getElementById('forgot-form-section').classList.add('active');
       document.getElementById('forgot-form-section').style.display = 'block';
     }
+    /** Show the login form, hiding the forgot password form. */
     function showLoginForm() {
       document.getElementById('forgot-form-section').classList.remove('active');
       document.getElementById('forgot-form-section').style.display = 'none';
@@ -1026,7 +1103,7 @@
       document.getElementById('login-form-section').style.display = '';
     }
 
-    // --- Remember me: auto-fill from localStorage ---
+    // Auto-fill email from localStorage if "remember me" was previously checked (IIFE)
     (function initRememberMe() {
       const saved = localStorage.getItem('aichatdesk_remember');
       if (saved) {
@@ -1038,7 +1115,12 @@
       }
     })();
 
-    // --- Login ---
+    /**
+     * Authenticate the agent via email/password. On success: stores JWT token,
+     * sets agent identity, shows/hides admin UI, starts session timer,
+     * loads chats and KB files, connects WebSocket.
+     * Optionally persists session in localStorage when "remember me" is checked.
+     */
     async function login() {
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
@@ -1098,7 +1180,7 @@
       }
     }
 
-    // --- Auto-login from saved session ---
+    // Auto-login from saved session in localStorage if token + agent data exist (IIFE)
     (function tryAutoLogin() {
       const savedToken = localStorage.getItem('aichatdesk_token');
       const savedAgent = localStorage.getItem('aichatdesk_agent');
@@ -1130,7 +1212,10 @@
       }
     })();
 
-    // --- Logout ---
+    /**
+     * Log out the agent. Calls the backend logout endpoint, clears all auth state
+     * and localStorage, closes WebSocket, and shows the login overlay.
+     */
     async function logout() {
       try {
         if (token) {
@@ -1154,7 +1239,13 @@
       log('Logged out');
     }
 
-    // --- Load chats ---
+    // ==========================================================================
+    // Chat List Management
+    // ==========================================================================
+
+    /**
+     * Fetch all chat sessions from the dashboard API and re-render the sidebar list.
+     */
     async function loadChats() {
       if (!token) return;
       try {
@@ -1167,6 +1258,10 @@
       }
     }
 
+    /**
+     * Render the chat sidebar list with status dots, priority badges, mode tags,
+     * elapsed timers, profanity flags, and action buttons (notes, delete).
+     */
     function renderChatList() {
       const el = document.getElementById('chat-list');
       const active = chatList.filter(c => c.status === 'active');
@@ -1214,6 +1309,15 @@
       updateElapsedTimers();
     }
 
+    // ==========================================================================
+    // Elapsed Timer Tracking
+    // ==========================================================================
+
+    /**
+     * Format milliseconds into HH:MM:SS display string.
+     * @param {number} ms - Duration in milliseconds
+     * @returns {string} Formatted time string (e.g., "01:23:45")
+     */
     function formatElapsed(ms) {
       const s = Math.floor(ms / 1000);
       const h = String(Math.floor(s / 3600)).padStart(2, '0');
@@ -1222,6 +1326,11 @@
       return `${h}:${m}:${sec}`;
     }
 
+    /**
+     * Update all elapsed timer elements in the chat list.
+     * For active chats, calculates time since start. For ended chats, shows final duration.
+     * Called every second via setInterval.
+     */
     function updateElapsedTimers() {
       document.querySelectorAll('.elapsed-timer').forEach(el => {
         const start = el.dataset.start;
@@ -1236,7 +1345,16 @@
 
     setInterval(updateElapsedTimers, 1000);
 
-    // --- Select chat (multi-panel) ---
+    // ==========================================================================
+    // Multi-Chat Split Screen Management
+    // ==========================================================================
+
+    /**
+     * Select a chat session: opens it in a split panel (up to MAX_SPLIT),
+     * updates the right info panel, joins the WebSocket room, and re-renders.
+     * If the chat is already open, focuses it without creating a duplicate panel.
+     * @param {string} sessionId - Chat session ID to select
+     */
     async function selectChat(sessionId) {
       const chat = chatList.find(c => c.sessionId === sessionId);
       if (!chat) return;
@@ -1317,7 +1435,11 @@
       renderChatList();
     }
 
-    // --- Multi-panel rendering ---
+    /**
+     * Render all active chat panels in a responsive CSS grid layout.
+     * Grid adapts: 1 panel = full width, 2 = side-by-side, 3-4 = 2x2, 5-6 = 3x2.
+     * Each panel has its own message area, takeover/return buttons, and input field.
+     */
     function renderChatPanels() {
       const container = document.getElementById('chat-panels-container');
       const emptyState = document.getElementById('chat-view-empty');
@@ -1386,6 +1508,11 @@
       });
     }
 
+    /**
+     * Focus a specific panel by session ID: updates selectedChat and right panel info.
+     * Called when clicking a panel header in split-screen mode.
+     * @param {string} sessionId - Session ID of the panel to focus
+     */
     function focusPanel(sessionId) {
       const chat = chatList.find(c => c.sessionId === sessionId);
       if (!chat) return;
@@ -1439,6 +1566,12 @@
       renderChatList();
     }
 
+    /**
+     * Fetch and render message history for a specific chat panel.
+     * Displays messages with sender labels, timestamps, attachments, and push-to-RAG buttons.
+     * User messages are run through profanity highlighting.
+     * @param {number} idx - Index into the activeChats array
+     */
     async function loadPanelMessages(idx) {
       const ac = activeChats[idx];
       if (!ac) return;
@@ -1480,6 +1613,7 @@
       } catch (err) { log('Load messages error: ' + err.message); }
     }
 
+    /** Close all open chat panels and clear the selection. */
     function closeAllPanels() {
       activeChats = [];
       selectedChat = null;
@@ -1487,6 +1621,11 @@
       renderChatList();
     }
 
+    /**
+     * Close a specific chat panel by index. If the closed panel was selected,
+     * automatically selects the first remaining panel.
+     * @param {number} idx - Index of the panel to close
+     */
     function closePanel(idx) {
       const closedSessionId = activeChats[idx]?.sessionId;
       activeChats.splice(idx, 1);
@@ -1501,6 +1640,15 @@
       renderChatList();
     }
 
+    // ==========================================================================
+    // Agent/Human Mode Switching (Takeover & Return)
+    // ==========================================================================
+
+    /**
+     * Take over a chat from AI to human mode for a specific panel.
+     * Calls the backend takeover endpoint with auth token.
+     * @param {number} idx - Index of the active chat panel
+     */
     async function takeoverPanel(idx) {
       const ac = activeChats[idx];
       if (!ac) return;
@@ -1519,6 +1667,10 @@
       } catch (err) { log('Takeover error: ' + err.message); }
     }
 
+    /**
+     * Return a chat from human mode back to AI for a specific panel.
+     * @param {number} idx - Index of the active chat panel
+     */
     async function returnPanel(idx) {
       const ac = activeChats[idx];
       if (!ac) return;
@@ -1537,6 +1689,11 @@
       } catch (err) { log('Return error: ' + err.message); }
     }
 
+    /**
+     * Send an agent message from a specific panel's input field.
+     * Increments the responses-sent counter and reloads panel messages.
+     * @param {number} idx - Index of the active chat panel
+     */
     async function sendPanelMessage(idx) {
       const ac = activeChats[idx];
       if (!ac) return;
@@ -1555,7 +1712,15 @@
       } catch (err) { log('Send error: ' + err.message); }
     }
 
-    // --- Helper functions ---
+    // ==========================================================================
+    // Helper Functions
+    // ==========================================================================
+
+    /**
+     * Parse a user-agent string into a simple browser name.
+     * @param {string} ua - Full user-agent string
+     * @returns {string} Short browser name (Chrome, Firefox, Safari, Edge) or truncated UA
+     */
     function parseUA(ua) {
       if (!ua) return '-';
       if (ua.includes('Chrome')) return 'Chrome';
@@ -1565,6 +1730,7 @@
       return ua.substring(0, 30);
     }
 
+    /** Toggle the environment details section expand/collapse in the right panel. */
     function toggleEnvSection() {
       const d = document.getElementById('env-details');
       const t = document.getElementById('env-toggle');
@@ -1572,11 +1738,20 @@
       else { d.style.display = 'none'; t.innerHTML = '&#x25B6;'; }
     }
 
+    /**
+     * Open the fullscreen image lightbox overlay.
+     * @param {string} url - Image URL to display
+     */
     function openLightbox(url) {
       document.getElementById('lightbox-img').src = url;
       document.getElementById('lightbox').style.display = 'flex';
     }
 
+    /**
+     * Fetch and display a text file (e.g., system-info) in a modal popup.
+     * @param {string} url - URL to fetch the text content from
+     * @param {string} title - Display title for the popup header
+     */
     async function openTextPopup(url, title) {
       try {
         const res = await fetch(url);
@@ -1598,19 +1773,42 @@
       }
     }
 
+    /**
+     * Escape HTML special characters to prevent XSS injection.
+     * @param {string} text - Raw text to escape
+     * @returns {string} HTML-escaped string
+     */
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
+    // ==========================================================================
+    // Profanity Highlighting
+    // ==========================================================================
+
+    /** @type {string[]} List of profanity terms to detect and highlight in user messages */
     const PROFANITY_LIST = ['fuck','shit','ass','bitch','damn','hell','crap','dick','cock','pussy','bastard','whore','slut','piss','cunt','twat','wanker','bollocks','arse','motherfucker','bullshit','asshole','dumbass','jackass','goddamn','stfu','wtf','fk','fck','sht'];
+    /**
+     * Highlight profanity words in HTML text with red bold styling.
+     * Uses word-boundary regex (\b) for whole-word matching, case-insensitive.
+     * @param {string} html - HTML string to scan for profanity
+     * @returns {string} HTML with profanity words wrapped in styled spans
+     */
     function highlightProfanity(html) {
       const regex = new RegExp('\\b(' + PROFANITY_LIST.join('|') + ')\\b', 'gi');
       return html.replace(regex, '<span style="color:#dc2626;font-weight:700;">$1</span>');
     }
 
-    // --- Agent actions (legacy, kept for canned responses) ---
+    // ==========================================================================
+    // Legacy Agent Actions (kept for canned responses compatibility)
+    // ==========================================================================
+
+    /**
+     * Legacy takeover function. Delegates to takeoverPanel if chat is in split view,
+     * otherwise calls the takeover API directly for the selected chat.
+     */
     async function takeover() {
       if (!selectedChat) return;
       const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
@@ -1631,6 +1829,9 @@
       } catch (err) { log(`Takeover error: ${err.message}`); }
     }
 
+    /**
+     * Legacy return-to-AI function. Delegates to returnPanel if in split view.
+     */
     async function returnToAI() {
       if (!selectedChat) return;
       const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
@@ -1649,6 +1850,14 @@
       } catch (err) { log(`Return error: ${err.message}`); }
     }
 
+    // ==========================================================================
+    // AI Copilot
+    // ==========================================================================
+
+    /**
+     * Request an AI-generated reply suggestion for the selected chat.
+     * Places the suggested text into the active panel's input field for the agent to review/edit.
+     */
     async function suggestReply() {
       if (!selectedChat) return;
       log('Requesting AI suggestion...');
@@ -1673,12 +1882,21 @@
       } catch (err) { log(`Suggest error: ${err.message}`); }
     }
 
+    /** Legacy send message function. Delegates to sendPanelMessage for the selected chat. */
     async function sendAgentMessage() {
       if (!selectedChat) return;
       const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
       if (idx !== -1) { sendPanelMessage(idx); return; }
     }
 
+    // ==========================================================================
+    // Internal Notes
+    // ==========================================================================
+
+    /**
+     * Add an internal note to the selected chat (visible only to agents, not customers).
+     * Saved as a message with isInternal=true flag.
+     */
     async function addNote() {
       const input = document.getElementById('note-input');
       const content = input.value.trim();
@@ -1702,8 +1920,14 @@
       } catch (err) { log(`Note error: ${err.message}`); }
     }
 
+    /** @type {string|null} Session ID of the chat whose notes modal is open */
     let notesSessionId = null;
 
+    /**
+     * Open the agent notes modal for a specific chat session.
+     * Pre-fills with existing notes if any.
+     * @param {string} sessionId - Chat session ID
+     */
     function openNotesModal(sessionId) {
       notesSessionId = sessionId;
       const chat = chatList.find(c => c.sessionId === sessionId);
@@ -1713,11 +1937,13 @@
       textarea.focus();
     }
 
+    /** Close the notes modal and clear the session reference. */
     function closeNotesModal() {
       document.getElementById('notes-modal').style.display = 'none';
       notesSessionId = null;
     }
 
+    /** Save agent notes for the current chat session to the backend. */
     async function saveNotes() {
       if (!notesSessionId) return;
       const notes = document.getElementById('notes-textarea').value.trim();
@@ -1738,6 +1964,11 @@
       } catch (err) { log('Save notes error: ' + err.message); }
     }
 
+    /**
+     * Delete a chat session and all its messages. Removes from active panels if open.
+     * @param {string} sessionId - Chat session ID to delete
+     * @param {string} userName - User name for logging
+     */
     async function deleteChat(sessionId, userName) {
       try {
         const res = await fetch(`${API}/api/chat/${sessionId}`, {
@@ -1764,6 +1995,14 @@
       }
     }
 
+    // ==========================================================================
+    // Canned Responses
+    // ==========================================================================
+
+    /**
+     * Insert a canned response into the active chat panel's input field.
+     * @param {string} text - Pre-written response text to insert
+     */
     function useCanned(text) {
       if (!selectedChat) return;
       const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
@@ -1773,7 +2012,16 @@
       }
     }
 
-    // --- WebSocket ---
+    // ==========================================================================
+    // WebSocket Connection & Real-time Event Handling
+    // ==========================================================================
+
+    /**
+     * Establish WebSocket connection and register as a dashboard client.
+     * On any incoming message (chat.new, chat.message, chat.closed, agent.takeover, etc.),
+     * reloads the chat list and refreshes the matching panel's messages.
+     * Auto-reconnects after 3 seconds on close.
+     */
     function connectWS() {
       try {
         ws = new WebSocket('ws://localhost:8005/ws');
@@ -1809,7 +2057,13 @@
       }
     }
 
-    // --- Knowledge Base ---
+    // ==========================================================================
+    // Knowledge Base Management (Sidebar)
+    // ==========================================================================
+
+    /**
+     * Load and display knowledge base documents in the sidebar KB list.
+     */
     async function loadKBFiles() {
       if (!token) return;
       try {
@@ -1835,6 +2089,10 @@
       }
     }
 
+    /**
+     * Upload a file to the knowledge base. Processes the file into chunks and embeddings.
+     * @param {Event} event - File input change event
+     */
     async function uploadKBFile(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -1871,6 +2129,10 @@
       setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
     }
 
+    /**
+     * Import a web page URL into the knowledge base.
+     * Backend fetches the page, extracts text, chunks it, and generates embeddings.
+     */
     async function importKBUrl() {
       const input = document.getElementById('kb-url-input');
       const url = input.value.trim();
@@ -1905,6 +2167,10 @@
       setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
     }
 
+    /**
+     * Delete a knowledge base document and its embeddings (sidebar version).
+     * @param {string} id - Knowledge base document ID
+     */
     async function deleteKBFile(id) {
       if (!confirm('Delete this knowledge base document?')) return;
       try {
@@ -1924,12 +2190,20 @@
       }
     }
 
-    // Allow Enter to login
+    // Allow Enter key to submit the login form
     document.getElementById('login-password').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') login();
     });
 
-    // --- Tab switching ---
+    // ==========================================================================
+    // Tab Switching (Chats, KB, Categories, Users, Settings)
+    // ==========================================================================
+
+    /**
+     * Switch the active dashboard tab. Shows/hides the appropriate page sections
+     * and triggers data loading for the selected tab.
+     * @param {'chats'|'kb'|'categories'|'users'|'settings'} tab - Tab to activate
+     */
     function switchTab(tab) {
       document.getElementById('tab-chats').classList.toggle('active', tab === 'chats');
       document.getElementById('tab-kb').classList.toggle('active', tab === 'kb');
@@ -1947,7 +2221,13 @@
       if (tab === 'settings') loadSettings();
     }
 
-    // --- KB Page functions ---
+    // ==========================================================================
+    // Knowledge Base Full Page (View/Edit, Upload, Import)
+    // ==========================================================================
+
+    /**
+     * Refresh the KB full-page table with all knowledge base documents.
+     */
     async function kbPageRefresh() {
       if (!token) return;
       try {
@@ -1980,6 +2260,11 @@
       }
     }
 
+    /**
+     * Show a status message on the KB page (auto-hides after 5s for non-loading states).
+     * @param {string} msg - Status message text
+     * @param {'success'|'error'|'loading'} type - Status type for styling
+     */
     function kbPageStatus(msg, type) {
       const el = document.getElementById('kb-page-status');
       el.textContent = msg;
@@ -1987,6 +2272,10 @@
       if (type !== 'loading') setTimeout(() => { el.className = 'kb-status'; }, 5000);
     }
 
+    /**
+     * Upload a file to the KB from the full KB page.
+     * @param {Event} event - File input change event
+     */
     async function kbPageUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -2006,6 +2295,7 @@
       } catch (err) { kbPageStatus(`Upload failed: ${err.message}`, 'error'); }
     }
 
+    /** Import a URL into the KB from the full KB page. */
     async function kbPageImportUrl() {
       const input = document.getElementById('kb-page-url');
       const url = input.value.trim();
@@ -2023,6 +2313,10 @@
       } catch (err) { kbPageStatus(`Import failed: ${err.message}`, 'error'); }
     }
 
+    /**
+     * Delete a KB document from the full KB page.
+     * @param {string} id - Document ID to delete
+     */
     async function deleteKBPageDoc(id) {
       if (!confirm('Delete this document and all its embeddings?')) return;
       try {
@@ -2036,7 +2330,13 @@
       } catch (err) { kbPageStatus(`Delete failed: ${err.message}`, 'error'); }
     }
 
+    /** @type {string|null} ID of the KB document currently being viewed/edited */
     let editingKBId = null;
+
+    /**
+     * Open the KB document viewer/editor modal with the document's content.
+     * @param {string} id - Document ID to view
+     */
     async function viewKBDoc(id) {
       editingKBId = id;
       try {
@@ -2052,11 +2352,13 @@
       } catch (err) { alert('Failed to load document: ' + err.message); }
     }
 
+    /** Close the KB document viewer/editor modal. */
     function closeKBModal() {
       document.getElementById('kb-modal').classList.remove('open');
       editingKBId = null;
     }
 
+    /** Save edited KB document content. Backend re-chunks and re-embeds the content. */
     async function saveKBContent() {
       if (!editingKBId) return;
       const content = document.getElementById('kb-modal-content').value;
@@ -2072,7 +2374,13 @@
       } catch (err) { alert('Save failed: ' + err.message); }
     }
 
-    // --- Categories CRUD ---
+    // ==========================================================================
+    // Workflow Categories CRUD
+    // ==========================================================================
+
+    /**
+     * Load all workflow categories (including inactive) and render the management table.
+     */
     async function loadCategories() {
       try {
         const res = await fetch(API + '/api/categories/all', { headers: { 'Authorization': 'Bearer ' + token } });
@@ -2090,6 +2398,10 @@
       } catch (err) { log('Categories load error: ' + err.message); }
     }
 
+    /**
+     * Create a new workflow category from the form inputs.
+     * Requires name and prompt; icon is optional (AI will auto-pick if empty).
+     */
     async function addCategory() {
       const name = document.getElementById('cat-name').value.trim();
       const icon = document.getElementById('cat-icon').value.trim(); // empty = AI auto-pick
@@ -2108,6 +2420,11 @@
       } catch (err) { log('Add category error: ' + err.message); }
     }
 
+    /**
+     * Toggle a category's active state.
+     * @param {string} id - Category document ID
+     * @param {boolean} active - New active state
+     */
     async function toggleCategory(id, active) {
       try {
         await fetch(API + '/api/categories/' + id, {
@@ -2118,6 +2435,10 @@
       } catch (err) { log('Toggle category error: ' + err.message); }
     }
 
+    /**
+     * Delete a workflow category after confirmation.
+     * @param {string} id - Category document ID
+     */
     async function deleteCategory(id) {
       if (!confirm('Delete this category?')) return;
       try {
@@ -2129,11 +2450,21 @@
       } catch (err) { log('Delete category error: ' + err.message); }
     }
 
-    // --- Users Management ---
-    let allAgents = [];
-    let allRoles = [];
-    let currentAgentSystemRole = 'agent'; // set after login
+    // ==========================================================================
+    // Users & Agents Management
+    // ==========================================================================
 
+    /** @type {Array} All agents/users loaded from the API */
+    let allAgents = [];
+    /** @type {Array} All roles loaded from the API */
+    let allRoles = [];
+    /** @type {string} System role of the currently logged-in agent (admin, manager, agent) */
+    let currentAgentSystemRole = 'agent';
+
+    /**
+     * Switch between sub-tabs within the Users page (all-users, roles-teams, invite-links).
+     * @param {'all-users'|'roles-teams'|'invite-links'} tab - Sub-tab to activate
+     */
     function switchUsersSubTab(tab) {
       document.querySelectorAll('#users-page .sub-tab-btn').forEach((btn, i) => {
         const tabs = ['all-users', 'roles-teams', 'invite-links'];
@@ -2146,6 +2477,7 @@
       if (tab === 'invite-links') loadInviteLinks();
     }
 
+    /** Fetch all agents from the API and render the users table. */
     async function loadUsers() {
       if (!token) return;
       try {
@@ -2158,6 +2490,11 @@
       } catch (err) { log('Load users error: ' + err.message); }
     }
 
+    /**
+     * Render the users table with name, email, system role badge, assigned roles,
+     * manager, status indicator, and action buttons (edit, delete, reset password).
+     * Delete button only shown for admin users.
+     */
     function renderUsersTable() {
       const el = document.getElementById('users-list');
       if (!allAgents.length) {
@@ -2193,6 +2530,7 @@
       }).join('');
     }
 
+    /** Fetch all roles from the API and render the roles table. */
     async function loadRolesTab() {
       if (!token) return;
       try {
@@ -2205,6 +2543,7 @@
       } catch (err) { log('Load roles error: ' + err.message); }
     }
 
+    /** Render the roles management table with icon, name, description, manager, agent count. */
     function renderRolesTable() {
       const el = document.getElementById('roles-list');
       if (!allRoles.length) {
@@ -2227,6 +2566,11 @@
       }).join('');
     }
 
+    // ==========================================================================
+    // Invite Links Management
+    // ==========================================================================
+
+    /** Fetch all invite links from the API and render the invite links table. */
     async function loadInviteLinks() {
       if (!token) return;
       try {
@@ -2239,6 +2583,10 @@
       } catch (err) { log('Load invite links error: ' + err.message); }
     }
 
+    /**
+     * Render the invite links table with URL, assigned roles, usage count, and status.
+     * @param {Array} links - Array of invite link objects from the API
+     */
     function renderInviteLinksTable(links) {
       const el = document.getElementById('invite-links-list');
       if (!links.length) {
@@ -2262,6 +2610,10 @@
       }).join('');
     }
 
+    /**
+     * Copy text to clipboard using the Clipboard API with a fallback for older browsers.
+     * @param {string} text - Text to copy
+     */
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text).then(() => {
         log('Copied invite link to clipboard');
@@ -2275,11 +2627,24 @@
       });
     }
 
-    // --- Modal helpers ---
+    // ==========================================================================
+    // Modal Helpers & Role/Manager Dropdowns
+    // ==========================================================================
+
+    /**
+     * Close a modal by removing the 'open' class.
+     * @param {string} id - DOM element ID of the modal
+     */
     function closeModal(id) {
       document.getElementById(id).classList.remove('open');
     }
 
+    /**
+     * Populate a container with role checkboxes, pre-checking any selected roles.
+     * Lazily loads roles from API if not already cached.
+     * @param {string} containerId - DOM ID of the container element
+     * @param {Array} selectedRoles - Array of role IDs or objects to pre-select
+     */
     async function populateRoleCheckboxes(containerId, selectedRoles) {
       // Load roles if not loaded
       if (!allRoles.length) {
@@ -2302,6 +2667,11 @@
       }).join('');
     }
 
+    /**
+     * Populate a select dropdown with admin/manager agents as manager options.
+     * @param {string} selectId - DOM ID of the select element
+     * @param {string} [selectedManagerId] - Pre-selected manager ID
+     */
     async function populateManagerDropdown(selectId, selectedManagerId) {
       // Load agents if needed
       if (!allAgents.length) {
@@ -2323,7 +2693,11 @@
       }).join('');
     }
 
-    // --- User Modal ---
+    /**
+     * Show the user create/edit modal. Pre-fills fields for editing, empty for new user.
+     * System role dropdown only visible to admin users.
+     * @param {Object} [agent] - Existing agent data for edit mode; omit for create mode
+     */
     async function showUserModal(agent) {
       const isEdit = !!agent;
       document.getElementById('user-modal-title').textContent = isEdit ? 'Edit User' : 'Add User';
@@ -2347,6 +2721,10 @@
       document.getElementById('user-modal').classList.add('open');
     }
 
+    /**
+     * Save user from the modal form (create or update based on presence of ID).
+     * Validates required fields and password length for new users.
+     */
     async function saveUser() {
       const id = document.getElementById('user-modal-id').value;
       const name = document.getElementById('user-modal-name').value.trim();
@@ -2380,6 +2758,10 @@
       } catch (err) { alert('Save failed: ' + err.message); }
     }
 
+    /**
+     * Deactivate a user (soft delete). The user will no longer be able to log in.
+     * @param {string} id - Agent document ID
+     */
     async function deleteUser(id) {
       if (!confirm('Deactivate this user? They will no longer be able to log in.')) return;
       try {
@@ -2394,7 +2776,10 @@
       } catch (err) { alert('Delete failed: ' + err.message); }
     }
 
-    // --- Role Modal ---
+    /**
+     * Show the role create/edit modal. Pre-fills fields for editing.
+     * @param {Object} [role] - Existing role data for edit mode; omit for create mode
+     */
     async function showRoleModal(role) {
       const isEdit = !!role;
       document.getElementById('role-modal-title').textContent = isEdit ? 'Edit Role' : 'Create Role';
@@ -2406,6 +2791,7 @@
       document.getElementById('role-modal').classList.add('open');
     }
 
+    /** Save role from the modal form (create or update). */
     async function saveRole() {
       const id = document.getElementById('role-modal-id').value;
       const name = document.getElementById('role-modal-name').value.trim();
@@ -2432,6 +2818,10 @@
       } catch (err) { alert('Save failed: ' + err.message); }
     }
 
+    /**
+     * Delete a role. Agents assigned to this role will be unassigned.
+     * @param {string} id - Role document ID
+     */
     async function deleteRole(id) {
       if (!confirm('Delete this role? Agents with this role will be unassigned.')) return;
       try {
@@ -2446,7 +2836,7 @@
       } catch (err) { alert('Delete failed: ' + err.message); }
     }
 
-    // --- Invite Link Modal ---
+    /** Show the create invite link modal with empty form fields. */
     async function showInviteLinkModal() {
       document.getElementById('invite-modal-label').value = '';
       document.getElementById('invite-modal-max').value = '0';
@@ -2456,6 +2846,9 @@
       document.getElementById('invite-modal').classList.add('open');
     }
 
+    /**
+     * Create a new invite link with label, role assignments, max uses, and optional expiry.
+     */
     async function createInviteLink() {
       const label = document.getElementById('invite-modal-label').value.trim();
       const roles = Array.from(document.querySelectorAll('#invite-modal-roles input:checked')).map(cb => cb.value);
@@ -2479,6 +2872,10 @@
       } catch (err) { alert('Create failed: ' + err.message); }
     }
 
+    /**
+     * Deactivate an invite link (soft delete).
+     * @param {string} id - Invite link document ID
+     */
     async function deleteInviteLink(id) {
       if (!confirm('Deactivate this invite link?')) return;
       try {
@@ -2493,7 +2890,11 @@
       } catch (err) { alert('Deactivate failed: ' + err.message); }
     }
 
-    // --- Reset Password Modal ---
+    /**
+     * Show the reset password modal for a specific agent.
+     * @param {string} agentId - Agent document ID
+     * @param {string} agentName - Agent display name (shown in modal)
+     */
     function showResetPasswordModal(agentId, agentName) {
       document.getElementById('reset-pw-agent-id').value = agentId;
       document.getElementById('reset-pw-agent-name').value = agentName;
@@ -2501,6 +2902,7 @@
       document.getElementById('reset-pw-modal').classList.add('open');
     }
 
+    /** Reset an agent's password. Requires minimum 8 characters. */
     async function resetAgentPassword() {
       const agentId = document.getElementById('reset-pw-agent-id').value;
       const newPassword = document.getElementById('reset-pw-value').value;
@@ -2518,7 +2920,17 @@
       } catch (err) { alert('Reset failed: ' + err.message); }
     }
 
-    // --- Push to RAG (knowledge base) ---
+    // ==========================================================================
+    // Push to RAG (Knowledge Base from Chat Messages)
+    // ==========================================================================
+
+    /**
+     * Push a chat message to the knowledge base as a Q&A pair.
+     * User messages become questions; AI/agent messages become answers.
+     * Adds visual feedback on the push button when successful.
+     * @param {string} content - Message content to push
+     * @param {string} sender - Message sender type ('user', 'ai', 'agent')
+     */
     async function pushToRAG(content, sender) {
       if (!token) return;
       const body = {};
@@ -2550,7 +2962,11 @@
       }
     }
 
-    // --- Settings ---
+    // ==========================================================================
+    // Settings Page
+    // ==========================================================================
+
+    /** Load application settings from the backend and populate the form. */
     async function loadSettings() {
       if (!token) return;
       try {
@@ -2564,6 +2980,7 @@
       } catch (err) { console.error('Load settings error:', err); }
     }
 
+    /** Save application settings to the backend. Shows a brief success message. */
     async function saveSettings() {
       if (!token) return;
       try {
@@ -2582,7 +2999,14 @@
       } catch (err) { console.error('Save settings error:', err); }
     }
 
-    // --- Profile modal ---
+    // ==========================================================================
+    // Profile Modal
+    // ==========================================================================
+
+    /**
+     * Open the agent profile modal. Fetches current agent data from /api/agents/me
+     * and pre-fills name, email, O365 email, and Teams email fields.
+     */
     async function openProfileModal() {
       const msgEl = document.getElementById('profile-msg');
       msgEl.style.display = 'none';
@@ -2605,6 +3029,10 @@
       document.getElementById('profile-modal').classList.add('open');
     }
 
+    /**
+     * Save agent profile changes (name, O365 email, Teams email).
+     * Optionally changes password if both current and new password fields are filled.
+     */
     async function saveProfile() {
       const msgEl = document.getElementById('profile-msg');
       msgEl.style.display = 'none';
@@ -2653,10 +3081,19 @@
       }
     }
 
-    // ========== GLOBAL SEARCH ==========
+    // ==========================================================================
+    // Global Search
+    // ==========================================================================
+
+    /** @type {number|null} Debounce timer for search input */
     let searchTimer = null;
+    /** @type {AbortController|null} AbortController to cancel in-flight search requests */
     let searchAbort = null;
 
+    /**
+     * Handle search input with 150ms debounce. Requires minimum 2 characters.
+     * @param {string} val - Current search input value
+     */
     function onSearchInput(val) {
       clearTimeout(searchTimer);
       const dd = document.getElementById('search-dropdown');
@@ -2666,6 +3103,7 @@
       searchTimer = setTimeout(() => doSearch(val.trim()), 150);
     }
 
+    /** Re-show search dropdown on focus if results are already loaded. */
     function onSearchFocus() {
       const dd = document.getElementById('search-dropdown');
       const val = document.getElementById('global-search').value.trim();
@@ -2674,6 +3112,7 @@
       }
     }
 
+    /** Close search dropdown and blur input on Escape key. */
     function onSearchKeydown(e) {
       if (e.key === 'Escape') {
         document.getElementById('search-dropdown').classList.remove('open');
@@ -2681,7 +3120,7 @@
       }
     }
 
-    // Close search dropdown on outside click
+    // Close search dropdown when clicking outside the search wrapper
     document.addEventListener('click', (e) => {
       const wrapper = document.querySelector('.search-wrapper');
       if (wrapper && !wrapper.contains(e.target)) {
@@ -2689,6 +3128,11 @@
       }
     });
 
+    /**
+     * Execute the search query against the backend API.
+     * Cancels any previous in-flight request using AbortController.
+     * @param {string} q - Search query string
+     */
     async function doSearch(q) {
       if (searchAbort) searchAbort.abort();
       searchAbort = new AbortController();
@@ -2707,12 +3151,25 @@
       }
     }
 
+    /**
+     * Highlight matching substrings in text with <mark> tags.
+     * @param {string} text - Text to search within
+     * @param {string} query - Search query to highlight
+     * @returns {string} HTML with matches wrapped in <mark>
+     */
     function highlightMatch(text, query) {
       if (!text) return '';
       const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return text.replace(new RegExp('(' + escaped + ')', 'gi'), '<mark>$1</mark>');
     }
 
+    /**
+     * Truncate text around the first match occurrence, showing context on both sides.
+     * @param {string} text - Full text to truncate
+     * @param {string} query - Search query to center around
+     * @param {number} maxLen - Maximum output length
+     * @returns {string} Truncated text with ellipsis indicators
+     */
     function truncateAround(text, query, maxLen) {
       if (!text || text.length <= maxLen) return text || '';
       const idx = text.toLowerCase().indexOf(query.toLowerCase());
@@ -2722,6 +3179,12 @@
       return (start > 0 ? '...' : '') + text.substring(start, end) + (end < text.length ? '...' : '');
     }
 
+    /**
+     * Render search results in the dropdown, grouped by type (Chats, Messages, Agents, Teams).
+     * Each result is clickable and navigates to the relevant chat or page.
+     * @param {Object} data - Search results with chats, messages, agents, teams arrays
+     * @param {string} q - Original search query for highlighting
+     */
     function renderSearchResults(data, q) {
       const dd = document.getElementById('search-dropdown');
       const { chats, messages, agents, teams } = data;
@@ -2792,6 +3255,10 @@
       dd.classList.add('open');
     }
 
+    /**
+     * Navigate to a specific chat from search results. Switches to chats tab and selects it.
+     * @param {string} sessionId - Chat session ID to navigate to
+     */
     function jumpToChat(sessionId) {
       document.getElementById('search-dropdown').classList.remove('open');
       document.getElementById('global-search').value = '';
@@ -2805,13 +3272,18 @@
       }
     }
 
+    /** Navigate to the Users tab from a search result click. */
     function searchGoToUsers() {
       document.getElementById('search-dropdown').classList.remove('open');
       document.getElementById('global-search').value = '';
       switchTab('users');
     }
 
-    // Poll for new chats
+    // ==========================================================================
+    // Polling
+    // ==========================================================================
+
+    // Poll for new/updated chats every 5 seconds (supplements WebSocket events)
     setInterval(() => { if (token) loadChats(); }, 5000);
   </script>
 </body>

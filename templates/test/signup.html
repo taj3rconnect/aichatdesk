@@ -273,20 +273,56 @@
   </div>
 
   <script>
+    /**
+     * AIChatDesk Agent Signup Page
+     *
+     * Handles the invite-based agent registration flow. Agents receive an invite
+     * link with a unique code, which is validated against the API before showing
+     * the signup form. The page transitions through four states:
+     *   1. Loading  - validating the invite code
+     *   2. Error    - invalid/expired invite code
+     *   3. Form     - signup form with name, email, password fields
+     *   4. Success  - account created confirmation
+     */
+
+    // ================================================================
+    // Configuration & DOM References
+    // ================================================================
+
+    /** @type {string} Base API URL derived from the current page origin */
     const API = window.location.origin;
 
+    /** @type {URLSearchParams} Query string parameters from the invite link */
     const params = new URLSearchParams(window.location.search);
+    /** @type {string|null} Invite code extracted from the ?code= query parameter */
     const code = params.get('code');
 
+    /** @type {HTMLElement} Loading spinner state container */
     const loadingEl = document.getElementById('loading-state');
+    /** @type {HTMLElement} Error/invalid invite state container */
     const errorEl = document.getElementById('error-state');
+    /** @type {HTMLElement} Signup form state container */
     const formEl = document.getElementById('form-state');
+    /** @type {HTMLElement} Success confirmation state container */
     const successEl = document.getElementById('success-state');
+    /** @type {HTMLElement} Error message text element within the error state */
     const errorMsgEl = document.getElementById('error-message');
+    /** @type {HTMLElement} Container for displaying assigned role badges */
     const rolesContainer = document.getElementById('roles-container');
+    /** @type {HTMLElement} Alert banner for form submission errors */
     const submitError = document.getElementById('submit-error');
+    /** @type {HTMLButtonElement} Form submit button (disabled during submission) */
     const submitBtn = document.getElementById('submit-btn');
 
+    // ================================================================
+    // UI State Management
+    // ================================================================
+
+    /**
+     * Switches the visible UI state by hiding all state containers
+     * and showing the specified one.
+     * @param {HTMLElement} state - The state container element to display
+     */
     function showState(state) {
       loadingEl.style.display = 'none';
       errorEl.style.display = 'none';
@@ -295,21 +331,51 @@
       state.style.display = 'block';
     }
 
+    // ================================================================
+    // Form Validation Helpers
+    // ================================================================
+
+    /**
+     * Clears all field-level validation errors by hiding error messages
+     * and removing the 'error' class from input elements.
+     */
     function clearFieldErrors() {
       document.querySelectorAll('.field-error').forEach(el => el.style.display = 'none');
       document.querySelectorAll('input.error').forEach(el => el.classList.remove('error'));
     }
 
+    /**
+     * Displays a validation error for a specific form field by adding
+     * the 'error' class to the input and showing its error message element.
+     * @param {string} inputId - The id of the input element to mark as invalid
+     * @param {string} errorId - The id of the error message element to display
+     */
     function showFieldError(inputId, errorId) {
       document.getElementById(inputId).classList.add('error');
       document.getElementById(errorId).style.display = 'block';
     }
 
+    /**
+     * Validates an email address using a basic regex pattern.
+     * Checks for: non-whitespace characters @ non-whitespace . non-whitespace
+     * @param {string} email - The email address to validate
+     * @returns {boolean} True if the email matches the expected pattern
+     */
     function validateEmail(email) {
+      // Basic email pattern: local@domain.tld (no whitespace or multiple @ signs)
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     }
 
-    // Validate invite code on page load
+    // ================================================================
+    // Invite Code Validation
+    // ================================================================
+
+    /**
+     * Validates the invite code by making a GET request to the signup API.
+     * Called on page load. If valid, populates the role badges and shows
+     * the signup form. If invalid or missing, displays the error state.
+     * @returns {Promise<void>}
+     */
     async function validateCode() {
       if (!code) {
         errorMsgEl.textContent = 'No invite code provided. Please use the invite link you were given.';
@@ -349,7 +415,15 @@
       }
     }
 
-    // Handle form submission
+    // ================================================================
+    // Form Submission
+    // ================================================================
+
+    /**
+     * Handles the signup form submission. Validates all fields client-side,
+     * then POSTs the registration data to the API. On success, transitions
+     * to the success state. On failure, displays the server error message.
+     */
     document.getElementById('signup-form').addEventListener('submit', async function(e) {
       e.preventDefault();
       clearFieldErrors();
@@ -410,10 +484,19 @@
       }
     });
 
-    // Clear field errors on input
+    // ================================================================
+    // Real-time Field Error Clearing
+    // ================================================================
+
+    /**
+     * Attaches input event listeners to all form inputs so that validation
+     * errors are cleared as soon as the user starts typing. Handles the
+     * special case of 'confirm-password' -> 'confirm-error' id mapping.
+     */
     document.querySelectorAll('input').forEach(input => {
       input.addEventListener('input', function() {
         this.classList.remove('error');
+        // Map input id to error element id (confirm-password -> confirm-error)
         const errorEl = document.getElementById(this.id + '-error') ||
                         document.getElementById(this.id.replace('confirm-password', 'confirm') + '-error');
         if (errorEl) errorEl.style.display = 'none';

@@ -1,6 +1,22 @@
-// Simple bot detection middleware
-// Flags suspicious patterns: missing user agent, known bot signatures, rapid requests
+/**
+ * @file botDetection.js — Heuristic bot and scraper detection middleware
+ * @description Uses three detection signals to identify automated/malicious traffic:
+ *   1. Missing User-Agent header (production only)
+ *   2. Known bot signatures in User-Agent (bot, crawl, spider, scrape, curl, wget, python-requests, postman)
+ *   3. Rate-based detection: >20 requests per 10-second window from the same IP
+ *
+ *   Bypasses: Health check (/health) and OPTIONS preflight requests skip detection entirely.
+ *
+ *   Blocking policy (production only): Requests are blocked (403) only when multiple flags
+ *   combine (e.g., bot UA + rapid fire, or missing UA + rapid fire). A single flag alone
+ *   is logged but allowed through. In non-production environments, nothing is blocked.
+ *
+ *   Cleanup: Old IP tracking records are probabilistically pruned (1% chance per request)
+ *   to prevent memory leaks from the in-memory Map.
+ * @requires none (standalone middleware)
+ */
 
+/** @type {RegExp[]} User-Agent patterns that indicate automated/bot traffic */
 const suspiciousPatterns = [
   /bot/i,
   /crawl/i,
@@ -12,8 +28,16 @@ const suspiciousPatterns = [
   /postman/i // Remove in dev if using Postman for testing
 ];
 
-const requestCounts = new Map(); // IP -> { count, firstRequest }
+/** @type {Map<string, {count: number, firstRequest: number}>} Per-IP request tracking for rate-based detection */
+const requestCounts = new Map();
 
+/**
+ * Bot detection middleware. Sets req.isBot, req.isSuspicious, req.isRapidFire flags.
+ * Blocks only in production when multiple signals combine.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 function botDetection(req, res, next) {
   const userAgent = req.headers['user-agent'] || '';
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
