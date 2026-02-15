@@ -1,3 +1,25 @@
+/**
+ * @file AI Routes — RAG-powered AI query engine with confidence scoring and human escalation
+ * @description Handles all AI-driven interactions using a multi-stage RAG pipeline:
+ *   1. Check semantic response cache (category-aware)
+ *   2. Detect user language for multilingual responses
+ *   3. Fetch conversation history (last 20 messages) for context continuity
+ *   4. Vector search knowledge base for relevant chunks (top 8, min 0.2 similarity)
+ *   5. Build system prompt with KB context, workflow category overrides, and format rules
+ *   6. Call Claude API with conversation history + current message
+ *   7. Score confidence based on RAG similarity, workflow category, and uncertainty patterns
+ *   8. Cache high-confidence responses; escalate low-confidence to human agents
+ *
+ *   Also provides summarization, categorization, agent reply suggestions (copilot),
+ *   and sentiment analysis with priority assignment.
+ *
+ * @requires @anthropic-ai/sdk - Claude API client
+ * @requires ../utils/vectorSearch - Knowledge base vector similarity search
+ * @requires ../utils/languageDetector - Message language detection
+ * @requires ../utils/categoryClassifier - Keyword-based chat categorization
+ * @requires ../utils/responseCache - Semantic response caching layer
+ */
+
 const express = require('express');
 const router = express.Router();
 const Anthropic = require('@anthropic-ai/sdk');
@@ -8,7 +30,7 @@ const { categorizeChat } = require('../utils/categoryClassifier');
 const { authenticateAgent } = require('../middleware/auth');
 const { findCachedResponse, cacheResponse } = require('../utils/responseCache');
 
-// Initialize Anthropic client
+/** Lazy-initialized Anthropic client singleton */
 let anthropic;
 function getAnthropicClient() {
   if (!anthropic) {
@@ -166,6 +188,14 @@ Format rules:
     const responseText = response.content[0].text;
 
     // 7. Calculate confidence score
+    // Confidence scoring tiers:
+    //   0.90 — High-similarity RAG match (>0.7 cosine similarity)
+    //   0.85 — Workflow category present (admin-curated prompt)
+    //   0.80 — Moderate RAG match (>=0.4 similarity)
+    //   0.70 — Multiple low-similarity matches (>=3 chunks provide broad context)
+    //   0.50 — Baseline (no RAG matches, no category)
+    //   -0.20 — Penalty if AI response contains uncertainty language
+    //   Minimum after penalty: 0.30
     let confidence = 0.5; // Default baseline
 
     // Workflow category responses are always high confidence (admin-defined prompts)
@@ -202,6 +232,8 @@ Format rules:
     }
 
     // 8. Determine if human escalation is needed
+    // Default threshold: 0.7 — below this the chat is escalated to human mode
+    // Configurable via CLAUDE_CONFIDENCE_THRESHOLD env var
     const confidenceThreshold = parseFloat(process.env.CLAUDE_CONFIDENCE_THRESHOLD || '0.7');
     const needsHuman = confidence < confidenceThreshold;
 

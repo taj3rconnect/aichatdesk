@@ -1,3 +1,37 @@
+/**
+ * @file Chat Routes — Chat session lifecycle management and agent assignment
+ * @description Manages the full chat lifecycle from creation through closure.
+ *
+ *   Chat status transitions:
+ *     active  — Chat is live (AI or human mode)
+ *     waiting — Queued for human agent (after escalation, no agent available)
+ *     closed  — Session ended (by user, agent, or inactivity timeout)
+ *
+ *   Chat modes:
+ *     ai    — AI is responding (default on creation)
+ *     human — Agent has taken over or escalation occurred
+ *
+ *   Agent assignment flow:
+ *     1. Chat created in AI mode, agent auto-assignment attempted via routing utility
+ *     2. On escalation: status -> waiting, mode -> human, re-attempt agent assignment
+ *     3. On takeover: agent manually claims chat, mode -> human, status -> active
+ *     4. On return-to-ai: agent releases chat, mode -> ai, assignedAgent cleared
+ *
+ *   Notifications fired on chat creation (fire-and-forget):
+ *     - Email notification to configured recipients
+ *     - Microsoft Teams notification via bot
+ *     - GitHub issue for non-chat ticket types (bug, feature_request)
+ *
+ *   Chat metadata includes: userAgent, ipAddress, currentPage, environment, categoryId
+ *
+ * @requires uuid - Session ID generation
+ * @requires ../utils/routing - Category-based agent assignment
+ * @requires ../utils/email - Email notifications
+ * @requires ../utils/github - GitHub issue creation for tickets
+ * @requires ../utils/teamsBot - Microsoft Teams notifications
+ * @requires ../websocket - Real-time broadcast to widget and dashboard
+ */
+
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { Chat, Agent, Message } = require('../db/models');

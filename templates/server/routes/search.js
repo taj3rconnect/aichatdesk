@@ -1,3 +1,14 @@
+/**
+ * @file Search Routes — Unified cross-entity search for the operator dashboard
+ * @description Provides a single search endpoint that queries across chats, messages,
+ *   agents, and teams in parallel for fast results. Uses case-insensitive regex matching
+ *   with special character escaping. Results are grouped by type with sensible limits
+ *   (10 chats, 15 messages, 10 agents, 5 teams). Message results include parent chat
+ *   context (sessionId, userName) for navigation.
+ *
+ * @requires ../middleware/auth - Agent authentication
+ */
+
 const express = require('express');
 const router = express.Router();
 const { Chat, Message, Agent, Role } = require('../db/models');

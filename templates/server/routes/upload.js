@@ -1,14 +1,40 @@
+/**
+ * @file Upload Routes — Secure file upload for chat attachments
+ * @description Handles file uploads from the chat widget with multi-layer security:
+ *
+ *   Security validation:
+ *     1. MIME type checking via multer fileFilter (middleware/fileUpload)
+ *        Allowed: PNG, JPG, GIF, PDF, TXT, LOG, ZIP, DOC, DOCX
+ *     2. Blocked extension check (server-side, post-upload):
+ *        Rejects executables (.exe, .bat, .cmd, .ps1, .sh, etc.)
+ *     3. File size limit: 10MB per file (configurable in multer middleware)
+ *     4. File count limit: Max 5 files per request
+ *
+ *   Metadata extraction: Each uploaded file returns filename, originalName,
+ *   public URL (/uploads/filename), MIME type, and size in bytes.
+ *
+ *   Audit logging: All uploads are logged with client IP, timestamp,
+ *   file count, and per-file details (name, type, size).
+ *
+ * @requires ../middleware/fileUpload - Multer configuration with MIME type filtering
+ */
+
 const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/fileUpload');
 
-// Blocked file extensions (dangerous/executable)
+/** Blocked file extensions — executable and script formats rejected for security */
 const BLOCKED_EXTENSIONS = [
   '.exe', '.com', '.bat', '.cmd', '.scr', '.pif', '.msi',
   '.vbs', '.js', '.ws', '.wsf', '.ps1', '.sh', '.cpl', '.inf', '.reg'
 ];
 
-// POST /api/upload - File upload endpoint with validation and storage
+/**
+ * POST /api/upload
+ * Upload up to 5 files with security validation. Returns file metadata array.
+ * Files are stored in /uploads/ directory with generated filenames.
+ * @param {File[]} req.files - Multipart file uploads (field name: 'files')
+ */
 router.post('/', upload.array('files', 5), (req, res) => {
   try {
     // Validate files were uploaded
@@ -65,7 +91,7 @@ router.post('/', upload.array('files', 5), (req, res) => {
   }
 });
 
-// Error handler for multer errors
+/** Express error handler for multer-specific upload errors (size, count, type) */
 router.use((err, req, res, next) => {
   if (err) {
     // Handle specific multer errors

@@ -1,3 +1,28 @@
+/**
+ * @file Messages Routes — Message creation, profanity detection, agent learning, and chat end
+ * @description Handles message persistence with real-time WebSocket broadcasting,
+ *   profanity flagging, automatic knowledge base learning from agent replies,
+ *   and chat session closure with transcript emailing.
+ *
+ *   Key features:
+ *     - Profanity detection: Checks user messages against a word list, flags chat
+ *       metadata.profanity=true and broadcasts to dashboard for agent awareness
+ *     - Agent learning (learnFromAgentReply): When an agent sends a non-internal message,
+ *       the Q&A pair (last user question + agent answer) is embedded and stored in the
+ *       knowledge base. Duplicate detection (cosine similarity >= 0.85) merges new info
+ *       into existing entries instead of creating duplicates
+ *     - Internal notes: Agent-only messages (isInternal=true) require auth and are not
+ *       broadcast to the widget user
+ *     - Chat end: Closes session, saves optional rating, sends transcript email,
+ *       broadcasts closure to both widget and dashboard
+ *
+ * @requires ../websocket - Real-time message broadcasting
+ * @requires ../utils/email - Chat transcript email delivery
+ * @requires ../utils/embeddings - Vector embedding generation for knowledge base
+ * @requires ../utils/vectorSearch - Cosine similarity for duplicate detection
+ * @requires ../utils/teamsBot - Forward user messages to Teams threads
+ */
+
 const express = require('express');
 const { Message, Chat, Agent, KnowledgeBase, Embedding } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
@@ -9,7 +34,8 @@ const { sendTeamsReply } = require('../utils/teamsBot');
 
 const router = express.Router();
 
-const DUPLICATE_THRESHOLD = 0.85; // Above this = duplicate, merge instead of creating new
+/** Cosine similarity threshold for duplicate Q&A detection — above this, merge instead of creating new */
+const DUPLICATE_THRESHOLD = 0.85;
 
 /**
  * Learn from agent reply: save Q&A pair to knowledge base with embedding.

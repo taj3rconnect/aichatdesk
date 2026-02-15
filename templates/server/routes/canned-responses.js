@@ -1,3 +1,14 @@
+/**
+ * @file Canned Responses Routes — Pre-written reply template management
+ * @description CRUD for reusable response templates that agents can quickly insert
+ *   into chat conversations. Supports category filtering, text search, keyboard
+ *   shortcuts (2-20 alphanumeric chars), and usage tracking for popularity sorting.
+ *   Creating/updating requires admin or supervisor role; using requires any agent role.
+ *   Soft-delete pattern (active=false) preserves historical usage data.
+ *
+ * @requires ../middleware/auth - authenticateAgent, requireRole
+ */
+
 const express = require('express');
 const router = express.Router();
 const { CannedResponse } = require('../db/models');

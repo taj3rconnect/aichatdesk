@@ -1,3 +1,33 @@
+/**
+ * @file Knowledge Routes — Knowledge base document management with RAG embedding pipeline
+ * @description Manages the full knowledge base lifecycle for the RAG system:
+ *
+ *   Upload pipeline (POST /upload):
+ *     1. File upload via multer (10MB limit, supports PDF/TXT/MD/DOCX/JSON/CSV/HTML)
+ *     2. Text extraction via textExtractor utility (handles multiple formats)
+ *     3. Text chunking with configurable size (default 1000 chars) and overlap (200 chars)
+ *     4. Vector embedding generation for each chunk (stored in Embedding collection)
+ *     5. Cleanup: temp file deleted after processing
+ *
+ *   URL import (POST /import-url):
+ *     Fetches web page, strips navigation/scripts, extracts main content via cheerio,
+ *     then runs the same chunk + embed pipeline as file upload.
+ *
+ *   Document editing (PUT /:id):
+ *     Deletes old embeddings, re-chunks new content, regenerates embeddings.
+ *
+ *   Knowledge push (POST /push):
+ *     Direct Q&A snippet injection from agent conversations. Includes duplicate
+ *     detection via cosine similarity (threshold 0.85) — merges similar content.
+ *
+ *   Soft-delete: Documents are deactivated (active=false), embeddings are hard-deleted.
+ *
+ * @requires multer - File upload handling
+ * @requires ../utils/textExtractor - Multi-format text extraction
+ * @requires ../utils/chunker - Text chunking with overlap
+ * @requires ../utils/embeddings - Vector embedding generation and cleanup
+ */
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');

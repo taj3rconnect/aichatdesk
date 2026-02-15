@@ -1,3 +1,31 @@
+/**
+ * @file Agents Routes — Authentication, agent CRUD, roles/teams, and invite link system
+ * @description Manages the complete agent lifecycle and access control system.
+ *
+ *   Authentication: JWT-based with 24h expiry (configurable via JWT_EXPIRES_IN).
+ *   Tokens include agentId, email, role, and systemRole claims.
+ *
+ *   Role hierarchy (systemRole):
+ *     - admin: Full access — can manage all agents, roles, and invite links
+ *     - manager: Can manage agents within their assigned teams only
+ *     - agent: Basic access — can view own profile and update own status
+ *
+ *   Team roles (agent.roles[]): Separate from systemRole — these are team/department
+ *   assignments (e.g., "Sales", "Support"). An agent can belong to multiple teams.
+ *   Managers are linked to teams via Role.managerId.
+ *
+ *   Invite links: Generate unique signup URLs with pre-configured team assignments.
+ *   Support max-use limits and expiration dates. Managers can only create links
+ *   for teams they manage.
+ *
+ *   Password hashing: bcryptjs with 10 salt rounds.
+ *
+ * @requires bcryptjs - Password hashing
+ * @requires jsonwebtoken - JWT token generation and verification
+ * @requires @anthropic-ai/sdk - AI-powered emoji icon selection for roles
+ * @requires ../middleware/auth - authenticateAgent, requireRole, canManageAgent
+ */
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -12,11 +40,18 @@ const VALID_SYSTEM_ROLES = ['admin', 'manager', 'agent'];
 const VALID_STATUSES = ['online', 'offline', 'away'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Resolve systemRole with fallback chain: agent.systemRole -> agent.role -> 'agent' */
 function getSystemRole(agent) {
   return agent.systemRole || agent.role || 'agent';
 }
 
-// --- AI icon picker for roles ---
+/**
+ * Pick an emoji icon for a role using Claude Haiku.
+ * Falls back to default team emoji on API failure or missing key.
+ * @param {string} name - Role name
+ * @param {string} description - Role description (truncated to 200 chars)
+ * @returns {Promise<string>} Single emoji character
+ */
 async function pickRoleIcon(name, description) {
   try {
     if (!process.env.CLAUDE_API_KEY) return '👥';
@@ -36,6 +71,13 @@ async function pickRoleIcon(name, description) {
 // AUTH ENDPOINTS
 // ============================================================
 
+/**
+ * POST /api/agents/login
+ * Authenticate agent with email/password, return JWT token.
+ * Sets agent status to 'online' and records lastLogin timestamp.
+ * @param {string} req.body.email - Agent email (case-insensitive)
+ * @param {string} req.body.password - Plain-text password to verify against bcrypt hash
+ */
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -75,6 +117,10 @@ router.post('/login', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/agents/logout
+ * Set agent status to 'offline'. Requires authentication.
+ */
 router.post('/logout', authenticateAgent, async (req, res) => {
   try {
     await Agent.findByIdAndUpdate(req.agent.agentId, { status: 'offline' });
@@ -85,6 +131,11 @@ router.post('/logout', authenticateAgent, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/agents/me
+ * Get current authenticated agent's profile (excludes passwordHash).
+ * Includes manager name if managerId is set.
+ */
 router.get('/me', authenticateAgent, async (req, res) => {
   try {
     const agent = await Agent.findById(req.agent.agentId).select('-passwordHash');
@@ -114,6 +165,14 @@ router.get('/me', authenticateAgent, async (req, res) => {
 // PROFILE UPDATE (self)
 // ============================================================
 
+/**
+ * PUT /api/agents/me
+ * Update own profile fields (name, office365Email, teamsEmail).
+ * Agents cannot change their own systemRole or team assignments.
+ * @param {string} [req.body.name] - Display name
+ * @param {string} [req.body.office365Email] - Office 365 calendar email
+ * @param {string} [req.body.teamsEmail] - Microsoft Teams email
+ */
 router.put('/me', authenticateAgent, async (req, res) => {
   try {
     const agent = await Agent.findById(req.agent.agentId);
@@ -142,7 +201,12 @@ router.put('/me', authenticateAgent, async (req, res) => {
 // PASSWORD RESET (admin/manager can reset for their agents)
 // ============================================================
 
-// Admin/manager resets password for an agent
+/**
+ * POST /api/agents/:agentId/reset-password
+ * Admin or manager resets another agent's password.
+ * Managers can only reset passwords for agents within their managed teams.
+ * @param {string} req.body.newPassword - New password (min 8 chars)
+ */
 router.post('/:agentId/reset-password', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const target = await Agent.findById(req.params.agentId);
@@ -169,7 +233,12 @@ router.post('/:agentId/reset-password', authenticateAgent, requireRole('admin', 
   }
 });
 
-// Agent changes own password
+/**
+ * POST /api/agents/change-password
+ * Agent changes their own password. Requires current password verification.
+ * @param {string} req.body.currentPassword - Current password for verification
+ * @param {string} req.body.newPassword - New password (min 8 chars)
+ */
 router.post('/change-password', authenticateAgent, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -195,6 +264,10 @@ router.post('/change-password', authenticateAgent, async (req, res) => {
 // AGENT CRUD
 // ============================================================
 
+/**
+ * GET /api/agents/online
+ * List all currently online agents (for routing and presence display).
+ */
 router.get('/online', authenticateAgent, async (req, res) => {
   try {
     const agents = await Agent.find({ status: 'online', active: { $ne: false } }).select('name status specialties roles');
@@ -209,7 +282,12 @@ router.get('/online', authenticateAgent, async (req, res) => {
   }
 });
 
-// List agents (admin sees all, manager sees their teams)
+/**
+ * GET /api/agents
+ * List agents. Admins see all active agents; managers see only agents
+ * in teams they manage (via Role.managerId lookup).
+ * @param {string} [req.query.status] - Filter by status (online/offline/away)
+ */
 router.get('/', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const sysRole = req.agent.systemRole || req.agent.role;
@@ -252,7 +330,17 @@ router.get('/', authenticateAgent, requireRole('admin', 'manager'), async (req, 
   }
 });
 
-// Create agent (admin or manager for their teams)
+/**
+ * POST /api/agents
+ * Create a new agent account. Admins can create any role; managers can only
+ * create agents (not admins/managers) and only assign teams they manage.
+ * @param {string} req.body.email - Agent email (unique, case-insensitive)
+ * @param {string} req.body.name - Display name (min 2 chars)
+ * @param {string} req.body.password - Initial password (min 8 chars)
+ * @param {string} [req.body.systemRole='agent'] - System role (admin/manager/agent)
+ * @param {string[]} [req.body.roles] - Team role names to assign
+ * @param {string} [req.body.managerId] - Reporting manager's agent ID
+ */
 router.post('/', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { email, name, password, systemRole, roles, managerId } = req.body;
@@ -308,7 +396,17 @@ router.post('/', authenticateAgent, requireRole('admin', 'manager'), async (req,
   }
 });
 
-// Update agent
+/**
+ * PUT /api/agents/:agentId
+ * Update an agent's profile. Managers can only edit agents in their teams.
+ * Only admins can change systemRole. Password update requires min 8 chars.
+ * @param {string} [req.body.name] - Display name
+ * @param {string} [req.body.email] - Email address
+ * @param {string} [req.body.systemRole] - System role (admin only)
+ * @param {string[]} [req.body.roles] - Team assignments
+ * @param {string} [req.body.managerId] - Manager assignment
+ * @param {string} [req.body.password] - New password (min 8 chars)
+ */
 router.put('/:agentId', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const target = await Agent.findById(req.params.agentId);
@@ -353,7 +451,10 @@ router.put('/:agentId', authenticateAgent, requireRole('admin', 'manager'), asyn
   }
 });
 
-// Deactivate agent (admin only)
+/**
+ * DELETE /api/agents/:agentId
+ * Soft-deactivate an agent (sets active=false, status=offline). Admin only.
+ */
 router.delete('/:agentId', authenticateAgent, requireRole('admin'), async (req, res) => {
   try {
     const agent = await Agent.findByIdAndUpdate(req.params.agentId, { active: false, status: 'offline' }, { new: true });
@@ -364,7 +465,12 @@ router.delete('/:agentId', authenticateAgent, requireRole('admin'), async (req, 
   }
 });
 
-// Update agent status
+/**
+ * PATCH /api/agents/:agentId/status
+ * Update agent's presence status. Agents can update their own status;
+ * admins and managers can update any agent's status.
+ * @param {string} req.body.status - New status (online/offline/away)
+ */
 router.patch('/:agentId/status', authenticateAgent, async (req, res) => {
   try {
     const { status } = req.body;
@@ -388,7 +494,10 @@ router.patch('/:agentId/status', authenticateAgent, async (req, res) => {
 // ROLES / TEAMS CRUD
 // ============================================================
 
-// List roles
+/**
+ * GET /api/agents/roles
+ * List all active roles/teams with agent counts and manager names.
+ */
 router.get('/roles', authenticateAgent, async (req, res) => {
   try {
     const roles = await Role.find({ active: true }).sort({ name: 1 });
@@ -420,7 +529,14 @@ router.get('/roles', authenticateAgent, async (req, res) => {
   }
 });
 
-// Create role (admin only)
+/**
+ * POST /api/agents/roles
+ * Create a new role/team. Admin only. Auto-picks emoji icon via AI if not provided.
+ * @param {string} req.body.name - Role name (min 2 chars, unique)
+ * @param {string} [req.body.description] - Role description
+ * @param {string} [req.body.icon] - Emoji icon (auto-picked via Claude if omitted)
+ * @param {string} [req.body.managerId] - Assigned manager's agent ID
+ */
 router.post('/roles', authenticateAgent, requireRole('admin'), async (req, res) => {
   try {
     const { name, description, icon, managerId } = req.body;
@@ -441,7 +557,11 @@ router.post('/roles', authenticateAgent, requireRole('admin'), async (req, res) 
   }
 });
 
-// Update role
+/**
+ * PUT /api/agents/roles/:id
+ * Update a role/team. Managers can only edit roles they manage.
+ * Only admins can reassign managerId. Re-picks icon if name changes.
+ */
 router.put('/roles/:id', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const role = await Role.findById(req.params.id);
@@ -466,7 +586,10 @@ router.put('/roles/:id', authenticateAgent, requireRole('admin', 'manager'), asy
   }
 });
 
-// Delete role (admin only)
+/**
+ * DELETE /api/agents/roles/:id
+ * Soft-delete a role (sets active=false). Admin only.
+ */
 router.delete('/roles/:id', authenticateAgent, requireRole('admin'), async (req, res) => {
   try {
     await Role.findByIdAndUpdate(req.params.id, { active: false });
@@ -480,7 +603,10 @@ router.delete('/roles/:id', authenticateAgent, requireRole('admin'), async (req,
 // INVITE LINKS
 // ============================================================
 
-// List invite links
+/**
+ * GET /api/agents/invite-links
+ * List active invite links. Admins see all; managers see only their own.
+ */
 router.get('/invite-links', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const callerRole = req.agent.systemRole || req.agent.role;
@@ -502,7 +628,16 @@ router.get('/invite-links', authenticateAgent, requireRole('admin', 'manager'), 
   }
 });
 
-// Create invite link
+/**
+ * POST /api/agents/invite-links
+ * Create a new invite link with a random 32-char hex code.
+ * Managers can only assign roles they manage. Supports max-use limits and expiry.
+ * @param {string} [req.body.label] - Human-readable label for the link
+ * @param {string[]} [req.body.defaultRoles] - Teams auto-assigned on signup
+ * @param {string} [req.body.defaultManagerId] - Manager auto-assigned on signup
+ * @param {number} [req.body.maxUses=0] - Max signups (0 = unlimited)
+ * @param {string} [req.body.expiresAt] - ISO date for link expiration
+ */
 router.post('/invite-links', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { label, defaultRoles, defaultManagerId, maxUses, expiresAt } = req.body;
@@ -541,7 +676,10 @@ router.post('/invite-links', authenticateAgent, requireRole('admin', 'manager'),
   }
 });
 
-// Deactivate invite link
+/**
+ * DELETE /api/agents/invite-links/:id
+ * Deactivate an invite link (sets active=false).
+ */
 router.delete('/invite-links/:id', authenticateAgent, requireRole('admin', 'manager'), async (req, res) => {
   try {
     await InviteLink.findByIdAndUpdate(req.params.id, { active: false });
@@ -555,7 +693,11 @@ router.delete('/invite-links/:id', authenticateAgent, requireRole('admin', 'mana
 // PUBLIC SIGNUP VIA INVITE LINK
 // ============================================================
 
-// Validate invite code (public)
+/**
+ * GET /api/agents/signup/:code
+ * Validate an invite code (public, no auth). Checks active status, expiry, and max uses.
+ * Returns the roles that will be assigned on signup.
+ */
 router.get('/signup/:code', async (req, res) => {
   try {
     const link = await InviteLink.findOne({ code: req.params.code, active: true });
@@ -569,7 +711,16 @@ router.get('/signup/:code', async (req, res) => {
   }
 });
 
-// Signup via invite code (public)
+/**
+ * POST /api/agents/signup/:code
+ * Create a new agent account via invite link (public, no auth).
+ * New agents are always created with systemRole 'agent'.
+ * Inherits defaultRoles and defaultManagerId from the invite link.
+ * Increments the link's usedCount on successful signup.
+ * @param {string} req.body.name - Agent display name
+ * @param {string} req.body.email - Agent email (unique, case-insensitive)
+ * @param {string} req.body.password - Password (min 8 chars)
+ */
 router.post('/signup/:code', async (req, res) => {
   try {
     const link = await InviteLink.findOne({ code: req.params.code, active: true });

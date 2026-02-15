@@ -1,3 +1,13 @@
+/**
+ * @file Settings Routes — Application configuration key-value store
+ * @description Simple key-value settings storage for application configuration.
+ *   Settings are stored as individual documents with { key, value, updatedAt }.
+ *   Reading requires admin/manager role; writing requires admin role.
+ *   Public endpoint available for widget-accessible settings (e.g., branding).
+ *
+ * @requires ../middleware/auth - authenticateAgent, requireRole
+ */
+
 const express = require('express');
 const router = express.Router();
 const { Setting } = require('../db/models');

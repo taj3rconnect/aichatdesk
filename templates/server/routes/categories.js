@@ -1,10 +1,33 @@
+/**
+ * @file Categories Routes — Workflow category management for AI behavior customization
+ * @description Manages workflow categories that customize the AI assistant's behavior
+ *   per chat session. Each category has a custom system prompt that is prepended to
+ *   the AI's instructions, allowing different greeting styles, topic focus, or
+ *   personality per department/use case (e.g., "Sales", "Technical Support").
+ *
+ *   Categories are shown in the chat widget for user self-selection.
+ *   When a chat has a categoryId, the AI query pipeline injects the category's
+ *   prompt before the standard system prompt, overriding default behavior.
+ *
+ *   Icons are auto-selected via Claude Haiku AI when not explicitly provided.
+ *
+ * @requires @anthropic-ai/sdk - AI-powered emoji icon selection
+ * @requires ../middleware/auth - Agent authentication for admin endpoints
+ */
+
 const express = require('express');
 const router = express.Router();
 const Anthropic = require('@anthropic-ai/sdk');
 const { WorkflowCategory } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
 
-// AI-powered icon selection based on category name and prompt
+/**
+ * Pick an emoji icon for a category using Claude Haiku.
+ * Falls back to default chat emoji on API failure or missing key.
+ * @param {string} name - Category name
+ * @param {string} prompt - Category prompt (truncated to 200 chars for AI context)
+ * @returns {Promise<string>} Single emoji character
+ */
 async function pickIcon(name, prompt) {
   try {
     if (!process.env.CLAUDE_API_KEY) return '💬';
@@ -27,7 +50,11 @@ async function pickIcon(name, prompt) {
   }
 }
 
-// GET /api/categories - List active categories (public, for widget)
+/**
+ * GET /api/categories
+ * List active categories sorted by sortOrder then name. Public endpoint (no auth)
+ * used by the chat widget to display category selection.
+ */
 router.get('/', async (req, res) => {
   try {
     const categories = await WorkflowCategory.find({ active: true })
@@ -40,7 +67,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/categories/all - List all categories (admin)
+/**
+ * GET /api/categories/all
+ * List all categories including inactive ones. Requires agent authentication.
+ */
 router.get('/all', authenticateAgent, async (req, res) => {
   try {
     const categories = await WorkflowCategory.find()
@@ -52,7 +82,16 @@ router.get('/all', authenticateAgent, async (req, res) => {
   }
 });
 
-// POST /api/categories - Create category (admin)
+/**
+ * POST /api/categories
+ * Create a new workflow category. Requires agent authentication.
+ * Auto-picks emoji icon via AI if not provided.
+ * @param {string} req.body.name - Category display name
+ * @param {string} req.body.prompt - System prompt prepended to AI instructions
+ * @param {string} [req.body.icon] - Emoji icon (auto-picked if omitted)
+ * @param {boolean} [req.body.active=true] - Whether category is visible in widget
+ * @param {number} [req.body.sortOrder=0] - Display order (lower = first)
+ */
 router.post('/', authenticateAgent, async (req, res) => {
   try {
     const { name, icon, prompt, active, sortOrder } = req.body;
@@ -76,7 +115,11 @@ router.post('/', authenticateAgent, async (req, res) => {
   }
 });
 
-// PUT /api/categories/:id - Update category (admin)
+/**
+ * PUT /api/categories/:id
+ * Update an existing workflow category. Re-picks icon via AI if name/prompt
+ * changed and no explicit icon provided.
+ */
 router.put('/:id', authenticateAgent, async (req, res) => {
   try {
     const { name, icon, prompt, active, sortOrder } = req.body;
@@ -103,7 +146,10 @@ router.put('/:id', authenticateAgent, async (req, res) => {
   }
 });
 
-// DELETE /api/categories/:id - Delete category (admin)
+/**
+ * DELETE /api/categories/:id
+ * Hard-delete a workflow category. Requires agent authentication.
+ */
 router.delete('/:id', authenticateAgent, async (req, res) => {
   try {
     const category = await WorkflowCategory.findByIdAndDelete(req.params.id);

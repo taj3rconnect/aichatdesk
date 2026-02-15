@@ -1,9 +1,20 @@
+/**
+ * @file Analytics Routes — Dashboard analytics and reporting metrics
+ * @description Provides aggregated analytics data for the operator dashboard including
+ *   total chats, AI vs human resolution rates, average response times, satisfaction
+ *   ratings, category breakdowns, priority distribution, and common questions.
+ *   All endpoints require agent authentication and support configurable date ranges
+ *   (defaults to last 30 days).
+ *
+ * @requires ../middleware/auth - Agent authentication
+ */
+
 const express = require('express');
 const router = express.Router();
 const { Chat, Message } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
 
-// Helper to parse date range with defaults
+/** Parse startDate/endDate from query params with defaults (30 days ago to now) */
 const getDateRange = (req) => {
   const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
   const startDate = req.query.startDate
@@ -13,7 +24,14 @@ const getDateRange = (req) => {
   return { startDate, endDate };
 };
 
-// GET /api/analytics/overview - Overall analytics metrics
+/**
+ * GET /api/analytics/overview
+ * Comprehensive analytics overview: total chats, AI/human resolution counts,
+ * average agent response time (minutes), satisfaction ratings (avg, thumbs up/down),
+ * chats by category, and chats by priority.
+ * @param {string} [req.query.startDate] - Start of date range (ISO date, default: 30 days ago)
+ * @param {string} [req.query.endDate] - End of date range (ISO date, default: now)
+ */
 router.get('/overview', authenticateAgent, async (req, res) => {
   try {
     const { startDate, endDate } = getDateRange(req);
@@ -126,7 +144,13 @@ router.get('/overview', authenticateAgent, async (req, res) => {
   }
 });
 
-// GET /api/analytics/common-questions - Most frequent questions
+/**
+ * GET /api/analytics/common-questions
+ * Most frequently asked first-messages across chats, grouped by content (case-insensitive).
+ * @param {string} [req.query.startDate] - Start of date range
+ * @param {string} [req.query.endDate] - End of date range
+ * @param {number} [req.query.limit=10] - Max results to return
+ */
 router.get('/common-questions', authenticateAgent, async (req, res) => {
   try {
     const { startDate, endDate } = getDateRange(req);
