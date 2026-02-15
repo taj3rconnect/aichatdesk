@@ -140,6 +140,14 @@
     /* Input area */
     #chat-input-area { padding: 10px 12px; border-top: 1px solid #eee; display: none; gap: 8px; align-items: center; }
     #chat-input-area.active { display: flex; }
+    .input-icon-btn {
+      width: 24px; height: 24px; background: none; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; border-radius: 50%;
+      transition: background 0.2s; flex-shrink: 0;
+    }
+    .input-icon-btn:hover { background: #f0f0f0; }
+    .input-icon-btn svg { width: 14px; height: 14px; fill: #888; }
+    .input-icon-btn:hover svg { fill: #6C5CE7; }
     #chat-input {
       flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 20px;
       font-size: 14px; outline: none; font-family: inherit; min-width: 0;
@@ -205,10 +213,26 @@
     }
     #annotation-overlay.open { display: flex; }
     #annotation-overlay .anno-toolbar {
-      display: flex; gap: 10px; margin-bottom: 10px;
+      display: flex; gap: 8px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; justify-content: center;
     }
     #annotation-overlay .anno-toolbar button {
-      padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600;
+      padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600;
+    }
+    #annotation-overlay .anno-toolbar .anno-tool-btn {
+      width: 34px; height: 34px; padding: 0; background: #444; color: white; display: flex; align-items: center; justify-content: center; border-radius: 6px;
+    }
+    #annotation-overlay .anno-toolbar .anno-tool-btn:hover { background: #666; }
+    #annotation-overlay .anno-toolbar .anno-tool-btn.active { background: #6C5CE7; }
+    #annotation-overlay .anno-toolbar .anno-tool-btn svg { width: 18px; height: 18px; fill: white; }
+    #annotation-overlay .anno-toolbar .anno-color-dot {
+      width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; background: none;
+    }
+    #annotation-overlay .anno-toolbar .anno-color-dot.active { border-color: white; }
+    #annotation-overlay .anno-toolbar .anno-color-inner {
+      width: 100%; height: 100%; border-radius: 50%; display: block;
+    }
+    #annotation-overlay .anno-toolbar .anno-separator {
+      width: 1px; height: 24px; background: #555; margin: 0 4px;
     }
     #annotation-overlay .anno-toolbar .anno-done { background: #6C5CE7; color: white; }
     #annotation-overlay .anno-toolbar .anno-done:hover { background: #5a4bd1; }
@@ -216,10 +240,33 @@
     #annotation-overlay .anno-toolbar .anno-cancel:hover { background: #666; }
     #annotation-overlay .anno-toolbar .anno-clear { background: #e74c3c; color: white; }
     #annotation-overlay .anno-toolbar .anno-clear:hover { background: #c0392b; }
+    #annotation-overlay .anno-toolbar .anno-undo { background: #f39c12; color: white; }
+    #annotation-overlay .anno-toolbar .anno-undo:hover { background: #e67e22; }
+    #annotation-canvas-container {
+      position: relative; display: inline-block;
+    }
     #annotation-canvas {
-      border: 2px solid white; border-radius: 4px; cursor: crosshair; max-width: 90vw; max-height: 75vh;
+      border: 2px solid white; border-radius: 4px; cursor: crosshair; max-width: 90vw; max-height: 70vh; display: block;
+    }
+    #annotation-text-input {
+      position: absolute; background: transparent; border: 1px dashed #fff; color: #e74c3c;
+      font-size: 16px; font-weight: bold; outline: none; padding: 2px 4px; min-width: 60px;
+      display: none; z-index: 20001;
     }
     #annotation-overlay .anno-hint { color: #aaa; font-size: 12px; margin-top: 8px; }
+
+    /* Category bar */
+    #category-bar {
+      display: none; padding: 8px 12px; border-bottom: 1px solid #eee;
+      gap: 6px; flex-wrap: wrap;
+    }
+    #category-bar.active { display: flex; }
+    .cat-btn {
+      padding: 4px 10px; border: 1px solid #ddd; border-radius: 16px; cursor: pointer;
+      font-size: 12px; background: white; transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+    }
+    .cat-btn:hover { border-color: #6C5CE7; color: #6C5CE7; }
+    .cat-btn.selected { background: #6C5CE7; color: white; border-color: #6C5CE7; }
 
     /* Hidden file input */
     #file-input { display: none; }
@@ -285,12 +332,6 @@
         <button class="header-icon-btn" onclick="toggleEmoji()" title="Emoji">
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
         </button>
-        <button class="header-icon-btn" onclick="document.getElementById('file-input').click()" title="Attach file">
-          <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
-        </button>
-        <button class="header-icon-btn" onclick="captureScreenshot()" title="Screenshot">
-          <svg viewBox="0 0 24 24"><path d="M21 6h-3.17L16 4h-6v2h5.12l1.83 2H21v12H5v-9H3v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM8 14c0 2.76 2.24 5 5 5s5-2.24 5-5-2.24-5-5-5-5 2.24-5 5zm5-3c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3zM5 6h3V4H5V1H3v3H0v2h3v3h2V6z"/></svg>
-        </button>
         <button class="header-icon-btn" onclick="toggleQuickActions()" title="Quick actions">
           <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
         </button>
@@ -304,6 +345,9 @@
       <input type="email" id="user-email" placeholder="Your email" required>
       <button class="start-btn" onclick="startChat()">Start Chat</button>
     </div>
+
+    <!-- Category bar (shown after chat starts, if categories exist) -->
+    <div id="category-bar"></div>
 
     <div id="chat-messages">
       <div class="typing-indicator" id="typing-indicator">
@@ -361,8 +405,14 @@
       <div class="popup-item" onclick="selectMood(5)">&#x1F929; Amazing</div>
     </div>
 
-    <!-- Input area -->
+    <!-- Input area (attach + screenshot buttons moved here) -->
     <div id="chat-input-area">
+      <button class="input-icon-btn" onclick="document.getElementById('file-input').click()" title="Attach file">
+        <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+      </button>
+      <button class="input-icon-btn" onclick="captureScreenshot()" title="Screenshot">
+        <svg viewBox="0 0 24 24"><path d="M21 6h-3.17L16 4h-6v2h5.12l1.83 2H21v12H5v-9H3v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM8 14c0 2.76 2.24 5 5 5s5-2.24 5-5-2.24-5-5-5-5 2.24-5 5zm5-3c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3zM5 6h3V4H5V1H3v3H0v2h3v3h2V6z"/></svg>
+      </button>
       <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMessage()">
       <button id="send-btn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -375,18 +425,41 @@
   <!-- Screenshot annotation overlay -->
   <div id="annotation-overlay">
     <div class="anno-toolbar">
+      <!-- Tool buttons -->
+      <button class="anno-tool-btn active" id="anno-pen-btn" onclick="setAnnotationMode('pen')" title="Pen">
+        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      </button>
+      <button class="anno-tool-btn" id="anno-text-btn" onclick="setAnnotationMode('text')" title="Text">
+        <svg viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4H5z"/></svg>
+      </button>
+      <button class="anno-tool-btn" id="anno-circle-btn" onclick="setAnnotationMode('circle')" title="Circle">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
+      </button>
+      <div class="anno-separator"></div>
+      <!-- Color dots -->
+      <button class="anno-color-dot active" onclick="setAnnotationColor('#e74c3c')" title="Red"><span class="anno-color-inner" style="background:#e74c3c;"></span></button>
+      <button class="anno-color-dot" onclick="setAnnotationColor('#2980b9')" title="Blue"><span class="anno-color-inner" style="background:#2980b9;"></span></button>
+      <button class="anno-color-dot" onclick="setAnnotationColor('#27ae60')" title="Green"><span class="anno-color-inner" style="background:#27ae60;"></span></button>
+      <button class="anno-color-dot" onclick="setAnnotationColor('#f1c40f')" title="Yellow"><span class="anno-color-inner" style="background:#f1c40f;"></span></button>
+      <div class="anno-separator"></div>
+      <button class="anno-undo" onclick="annotationUndo()">Undo</button>
       <button class="anno-done" onclick="annotationDone()">Done</button>
       <button class="anno-clear" onclick="annotationClear()">Clear</button>
       <button class="anno-cancel" onclick="annotationCancel()">Cancel</button>
     </div>
-    <canvas id="annotation-canvas"></canvas>
-    <div class="anno-hint">Draw on the screenshot to highlight areas, then click Done</div>
+    <div id="annotation-canvas-container">
+      <canvas id="annotation-canvas"></canvas>
+      <input type="text" id="annotation-text-input" placeholder="Type text...">
+    </div>
+    <div class="anno-hint">Draw, add text, or circle areas on the screenshot, then click Done</div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
     const API = 'http://localhost:8004';
     const WS_URL = 'ws://localhost:8004/ws';
+
+    const BLOCKED_EXTENSIONS = ['.exe','.com','.bat','.cmd','.scr','.pif','.msi','.vbs','.js','.ws','.wsf','.ps1','.sh'];
 
     let ws = null;
     let sessionId = null;
@@ -398,6 +471,7 @@
     let selectedTicketType = null;
     let selectedPriority = 'medium';
     let selectedMood = 3;
+    let selectedCategory = null;
 
     function toggleHeaderPopup(id) {
       closeAllPopups();
@@ -430,6 +504,36 @@
         el.classList.toggle('selected', el.textContent.trim().toLowerCase().includes(labels[val] || ''));
       });
       document.getElementById('mood-popup').classList.remove('open');
+    }
+
+    // --- Environment capture ---
+    function captureEnvironment() {
+      return {
+        browser: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        languages: navigator.languages,
+        cookiesEnabled: navigator.cookieEnabled,
+        doNotTrack: navigator.doNotTrack,
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+        screenColorDepth: screen.colorDepth,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezoneOffset: new Date().getTimezoneOffset(),
+        online: navigator.onLine,
+        connectionType: navigator.connection?.effectiveType,
+        connectionDownlink: navigator.connection?.downlink,
+        hardwareConcurrency: navigator.hardwareConcurrency,
+        deviceMemory: navigator.deviceMemory,
+        maxTouchPoints: navigator.maxTouchPoints,
+        referrer: document.referrer,
+        currentUrl: window.location.href,
+        localStorage: typeof localStorage !== 'undefined',
+        sessionStorage: typeof sessionStorage !== 'undefined'
+      };
     }
 
     // --- Emoji data ---
@@ -493,6 +597,37 @@
 
     function toggleChat() { document.getElementById('chat-window').classList.toggle('open'); }
 
+    // --- Workflow categories ---
+    async function loadCategories() {
+      try {
+        const res = await fetch(`${API}/api/categories`);
+        const cats = await res.json();
+        if (!cats || !cats.length) return;
+        const bar = document.getElementById('category-bar');
+        bar.innerHTML = cats.map(cat =>
+          `<button class="cat-btn" data-id="${cat._id}" onclick="selectCategory('${cat._id}', this)">${cat.icon ? cat.icon + ' ' : ''}${cat.name}</button>`
+        ).join('');
+        bar.classList.add('active');
+      } catch (err) {
+        console.log('Categories not available:', err.message);
+      }
+    }
+
+    async function selectCategory(catId, btn) {
+      selectedCategory = catId;
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
+      if (btn) btn.classList.add('selected');
+      try {
+        await fetch(`${API}/api/chat/${sessionId}/category`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categoryId: catId })
+        });
+      } catch (err) {
+        console.error('Failed to set category:', err);
+      }
+    }
+
     // --- Start chat ---
     async function startChat() {
       userName = document.getElementById('user-name').value.trim();
@@ -507,7 +642,8 @@
             userName, userEmail, currentPage: window.location.pathname,
             ticketType: selectedTicketType || undefined,
             userPriority: selectedPriority || undefined,
-            mood: selectedMood || undefined
+            mood: selectedMood || undefined,
+            environment: captureEnvironment()
           })
         });
         const data = await res.json();
@@ -520,6 +656,7 @@
         document.getElementById('chat-input-area').classList.add('active');
         updateModeBadge();
         addSystemMessage('Connected! Ask anything.');
+        loadCategories();
       } catch (err) { alert('Failed to connect: ' + err.message); }
     }
 
@@ -601,14 +738,33 @@
       }
     }
 
+    // --- Blocked extension check ---
+    function isBlockedFile(file) {
+      const name = file.name.toLowerCase();
+      const dotIdx = name.lastIndexOf('.');
+      if (dotIdx === -1) return false;
+      const ext = name.substring(dotIdx);
+      return BLOCKED_EXTENSIONS.includes(ext);
+    }
+
     // --- File handling ---
     function handleFileSelect(e) {
       const files = Array.from(e.target.files);
-      files.forEach(f => addPendingFile(f));
+      files.forEach(f => {
+        if (isBlockedFile(f)) {
+          alert(`File "${f.name}" is not allowed. Blocked file type.`);
+          return;
+        }
+        addPendingFile(f);
+      });
       e.target.value = ''; // reset so same file can be re-selected
     }
 
     function addPendingFile(file) {
+      if (isBlockedFile(file)) {
+        alert(`File "${file.name}" is not allowed. Blocked file type.`);
+        return;
+      }
       if (pendingFiles.length >= 5) { alert('Maximum 5 files at a time'); return; }
       if (file.size > 10 * 1024 * 1024) { alert(`${file.name} is too large (max 10MB)`); return; }
       pendingFiles.push(file);
@@ -689,14 +845,36 @@
       document.getElementById('emoji-picker').classList.remove('open');
     }
 
-    // --- Screenshot capture with annotation ---
+    // --- Enhanced Screenshot annotation ---
     let annoBaseImage = null;
     let annoDrawing = false;
     let annoCtx = null;
+    let annotationMode = 'pen'; // 'pen' | 'text' | 'circle'
+    let annotationColor = '#e74c3c';
+    let annotations = []; // { type: 'pen'|'text'|'circle', data: ..., color: string }
+    let currentPenPath = []; // points for current pen stroke
+    let circleStart = null; // {x, y} for circle drag start
+
+    function setAnnotationMode(mode) {
+      annotationMode = mode;
+      document.getElementById('anno-pen-btn').classList.toggle('active', mode === 'pen');
+      document.getElementById('anno-text-btn').classList.toggle('active', mode === 'text');
+      document.getElementById('anno-circle-btn').classList.toggle('active', mode === 'circle');
+      // Update cursor
+      const canvas = document.getElementById('annotation-canvas');
+      canvas.style.cursor = mode === 'text' ? 'text' : 'crosshair';
+    }
+
+    function setAnnotationColor(color) {
+      annotationColor = color;
+      document.querySelectorAll('.anno-color-dot').forEach(dot => {
+        const inner = dot.querySelector('.anno-color-inner');
+        dot.classList.toggle('active', inner && inner.style.background === color);
+      });
+    }
 
     function captureScreenshot() {
       if (!chatId) { alert('Please start a chat first'); return; }
-      // Hide chat widget and overlay during capture
       const chatWindow = document.getElementById('chat-window');
       const bubble = document.getElementById('chat-bubble');
       chatWindow.style.visibility = 'hidden';
@@ -718,9 +896,8 @@
       const overlay = document.getElementById('annotation-overlay');
       const annoCanvas = document.getElementById('annotation-canvas');
 
-      // Size canvas to source but cap at viewport
       const maxW = window.innerWidth * 0.9;
-      const maxH = window.innerHeight * 0.75;
+      const maxH = window.innerHeight * 0.70;
       let w = sourceCanvas.width, h = sourceCanvas.height;
       const ratio = Math.min(maxW / w, maxH / h, 1);
       w = Math.round(w * ratio);
@@ -731,34 +908,175 @@
       annoCtx = annoCanvas.getContext('2d');
       annoCtx.drawImage(sourceCanvas, 0, 0, w, h);
 
-      // Store base image for clear
       annoBaseImage = annoCtx.getImageData(0, 0, w, h);
+      annotations = [];
+      currentPenPath = [];
+      circleStart = null;
+      annotationMode = 'pen';
+      annotationColor = '#e74c3c';
 
-      // Drawing handlers
-      annoCanvas.onmousedown = (e) => { annoDrawing = true; annoCtx.beginPath(); annoCtx.moveTo(e.offsetX, e.offsetY); };
-      annoCanvas.onmousemove = (e) => {
-        if (!annoDrawing) return;
-        annoCtx.strokeStyle = '#e74c3c';
+      // Reset toolbar state
+      setAnnotationMode('pen');
+      setAnnotationColor('#e74c3c');
+
+      // Mouse handlers
+      annoCanvas.onmousedown = (e) => handleAnnoMouseDown(e.offsetX, e.offsetY);
+      annoCanvas.onmousemove = (e) => handleAnnoMouseMove(e.offsetX, e.offsetY);
+      annoCanvas.onmouseup = (e) => handleAnnoMouseUp(e.offsetX, e.offsetY);
+      annoCanvas.onmouseleave = () => { if (annotationMode === 'pen' && annoDrawing) handleAnnoMouseUp(0, 0); };
+
+      // Touch support
+      annoCanvas.ontouchstart = (e) => {
+        e.preventDefault();
+        const t = e.touches[0]; const r = annoCanvas.getBoundingClientRect();
+        handleAnnoMouseDown(t.clientX - r.left, t.clientY - r.top);
+      };
+      annoCanvas.ontouchmove = (e) => {
+        e.preventDefault();
+        const t = e.touches[0]; const r = annoCanvas.getBoundingClientRect();
+        handleAnnoMouseMove(t.clientX - r.left, t.clientY - r.top);
+      };
+      annoCanvas.ontouchend = (e) => {
+        e.preventDefault();
+        handleAnnoMouseUp(0, 0);
+      };
+
+      overlay.classList.add('open');
+    }
+
+    function handleAnnoMouseDown(x, y) {
+      if (annotationMode === 'pen') {
+        annoDrawing = true;
+        currentPenPath = [{ x, y }];
+        annoCtx.beginPath();
+        annoCtx.moveTo(x, y);
+      } else if (annotationMode === 'circle') {
+        annoDrawing = true;
+        circleStart = { x, y };
+      } else if (annotationMode === 'text') {
+        showTextInput(x, y);
+      }
+    }
+
+    function handleAnnoMouseMove(x, y) {
+      if (!annoDrawing) return;
+      if (annotationMode === 'pen') {
+        currentPenPath.push({ x, y });
+        annoCtx.strokeStyle = annotationColor;
         annoCtx.lineWidth = 3;
         annoCtx.lineCap = 'round';
         annoCtx.lineJoin = 'round';
-        annoCtx.lineTo(e.offsetX, e.offsetY);
+        annoCtx.lineTo(x, y);
         annoCtx.stroke();
-      };
-      annoCanvas.onmouseup = () => { annoDrawing = false; };
-      annoCanvas.onmouseleave = () => { annoDrawing = false; };
+      } else if (annotationMode === 'circle' && circleStart) {
+        // Redraw everything up to now, then preview the ellipse
+        redrawAnnotations();
+        drawEllipseFromPoints(circleStart.x, circleStart.y, x, y, annotationColor, false);
+      }
+    }
 
-      // Touch support
-      annoCanvas.ontouchstart = (e) => { e.preventDefault(); const t = e.touches[0]; const r = annoCanvas.getBoundingClientRect(); annoDrawing = true; annoCtx.beginPath(); annoCtx.moveTo(t.clientX - r.left, t.clientY - r.top); };
-      annoCanvas.ontouchmove = (e) => {
-        e.preventDefault(); if (!annoDrawing) return;
-        const t = e.touches[0]; const r = annoCanvas.getBoundingClientRect();
-        annoCtx.strokeStyle = '#e74c3c'; annoCtx.lineWidth = 3; annoCtx.lineCap = 'round'; annoCtx.lineJoin = 'round';
-        annoCtx.lineTo(t.clientX - r.left, t.clientY - r.top); annoCtx.stroke();
-      };
-      annoCanvas.ontouchend = () => { annoDrawing = false; };
+    function handleAnnoMouseUp(x, y) {
+      if (!annoDrawing) return;
+      annoDrawing = false;
+      if (annotationMode === 'pen' && currentPenPath.length > 1) {
+        annotations.push({ type: 'pen', data: [...currentPenPath], color: annotationColor });
+        currentPenPath = [];
+      } else if (annotationMode === 'circle' && circleStart) {
+        annotations.push({ type: 'circle', data: { x1: circleStart.x, y1: circleStart.y, x2: x, y2: y }, color: annotationColor });
+        circleStart = null;
+        redrawAnnotations();
+      }
+    }
 
-      overlay.classList.add('open');
+    function showTextInput(x, y) {
+      const container = document.getElementById('annotation-canvas-container');
+      const input = document.getElementById('annotation-text-input');
+      input.style.left = x + 'px';
+      input.style.top = y + 'px';
+      input.style.color = annotationColor;
+      input.style.display = 'block';
+      input.value = '';
+      input.focus();
+
+      const currentColor = annotationColor;
+
+      function commitText() {
+        const text = input.value.trim();
+        if (text) {
+          annotations.push({ type: 'text', data: { x, y, text }, color: currentColor });
+          redrawAnnotations();
+        }
+        input.style.display = 'none';
+        input.removeEventListener('keydown', onKey);
+        input.removeEventListener('blur', onBlur);
+      }
+
+      function onKey(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commitText();
+        } else if (e.key === 'Escape') {
+          input.style.display = 'none';
+          input.removeEventListener('keydown', onKey);
+          input.removeEventListener('blur', onBlur);
+        }
+      }
+      function onBlur() {
+        // Small delay to avoid conflict with other clicks
+        setTimeout(commitText, 100);
+      }
+
+      input.addEventListener('keydown', onKey);
+      input.addEventListener('blur', onBlur);
+    }
+
+    function drawEllipseFromPoints(x1, y1, x2, y2, color, permanent) {
+      const cx = (x1 + x2) / 2;
+      const cy = (y1 + y2) / 2;
+      const rx = Math.abs(x2 - x1) / 2;
+      const ry = Math.abs(y2 - y1) / 2;
+      if (rx < 2 && ry < 2) return;
+      annoCtx.beginPath();
+      annoCtx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+      annoCtx.strokeStyle = color;
+      annoCtx.lineWidth = 3;
+      annoCtx.stroke();
+    }
+
+    function redrawAnnotations() {
+      if (!annoBaseImage || !annoCtx) return;
+      const canvas = document.getElementById('annotation-canvas');
+      annoCtx.putImageData(annoBaseImage, 0, 0);
+
+      for (const anno of annotations) {
+        if (anno.type === 'pen') {
+          annoCtx.beginPath();
+          annoCtx.strokeStyle = anno.color;
+          annoCtx.lineWidth = 3;
+          annoCtx.lineCap = 'round';
+          annoCtx.lineJoin = 'round';
+          const pts = anno.data;
+          if (pts.length > 0) {
+            annoCtx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+              annoCtx.lineTo(pts[i].x, pts[i].y);
+            }
+            annoCtx.stroke();
+          }
+        } else if (anno.type === 'circle') {
+          drawEllipseFromPoints(anno.data.x1, anno.data.y1, anno.data.x2, anno.data.y2, anno.color, true);
+        } else if (anno.type === 'text') {
+          annoCtx.font = 'bold 16px sans-serif';
+          annoCtx.fillStyle = anno.color;
+          annoCtx.fillText(anno.data.text, anno.data.x, anno.data.y);
+        }
+      }
+    }
+
+    function annotationUndo() {
+      if (annotations.length === 0) return;
+      annotations.pop();
+      redrawAnnotations();
     }
 
     function annotationDone() {
@@ -773,15 +1091,18 @@
     }
 
     function annotationClear() {
-      if (annoBaseImage && annoCtx) {
-        annoCtx.putImageData(annoBaseImage, 0, 0);
-      }
+      annotations = [];
+      redrawAnnotations();
     }
 
     function annotationCancel() {
       document.getElementById('annotation-overlay').classList.remove('open');
+      document.getElementById('annotation-text-input').style.display = 'none';
       annoBaseImage = null;
       annoDrawing = false;
+      annotations = [];
+      currentPenPath = [];
+      circleStart = null;
     }
 
     // --- Quick actions ---

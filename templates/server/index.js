@@ -56,6 +56,7 @@ app.use('/api/messages', require('./routes/messages')); // Phase 5 - Message cre
 app.use('/api/dashboard', require('./routes/dashboard')); // Phase 6 - Operator dashboard
 app.use('/api/analytics', require('./routes/analytics')); // Phase 6 - Analytics
 app.use('/api/canned-responses', require('./routes/canned-responses')); // Phase 6 - Canned responses
+app.use('/api/categories', require('./routes/categories')); // Workflow categories
 
 // Error handler
 app.use((err, req, res, next) => {

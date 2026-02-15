@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Anthropic = require('@anthropic-ai/sdk');
-const { Chat, Message } = require('../db/models');
+const { Chat, Message, WorkflowCategory } = require('../db/models');
 const { searchKnowledgeBase } = require('../utils/vectorSearch');
 const { detectLanguage } = require('../utils/languageDetector');
 const { categorizeChat } = require('../utils/categoryClassifier');
 const { authenticateAgent } = require('../middleware/auth');
+const { findCachedResponse, cacheResponse } = require('../utils/responseCache');
 
 // Initialize Anthropic client
 let anthropic;
@@ -33,6 +34,32 @@ router.post('/query', async (req, res) => {
 
     if (!chatId || !message) {
       return res.status(400).json({ error: 'chatId and message are required' });
+    }
+
+    // 0. Check semantic response cache first
+    const cachedResult = await findCachedResponse(message);
+    if (cachedResult) {
+      // Save cached AI message to database
+      await Message.create({
+        chatId,
+        sender: 'ai',
+        content: cachedResult.response,
+        metadata: {
+          confidence: cachedResult.confidence,
+          sources: cachedResult.sources,
+          cached: true,
+          cacheSimlarity: cachedResult.similarity,
+          responseTime: Date.now() - startTime
+        }
+      });
+
+      return res.json({
+        response: cachedResult.response,
+        confidence: cachedResult.confidence,
+        needsHuman: false,
+        sources: (cachedResult.sources || []).map(s => ({ filename: s })),
+        cached: true
+      });
     }
 
     // 1. Detect language
@@ -81,6 +108,16 @@ Format rules:
     // Add page context if provided
     if (pageContext) {
       systemPrompt += `\n\nThe user is currently on page: ${pageContext}`;
+    }
+
+    // Inject workflow category prompt if chat has one
+    const chat = await Chat.findById(chatId);
+    if (chat && chat.metadata?.categoryId) {
+      const category = await WorkflowCategory.findById(chat.metadata.categoryId);
+      if (category && category.prompt) {
+        systemPrompt = category.prompt + '\n\n' + systemPrompt;
+        console.log(`[AI Query] Using workflow category: ${category.name}`);
+      }
     }
 
     // 5. Build conversation messages for Claude
@@ -168,12 +205,21 @@ Format rules:
 
     console.log(`[AI Query] Response generated in ${Date.now() - startTime}ms, confidence: ${confidence.toFixed(2)}`);
 
+    // Cache the response for future similar questions (fire-and-forget)
+    if (confidence >= 0.7) {
+      cacheResponse(
+        message, null, responseText, confidence,
+        ragResults.map(r => r.filename)
+      ).catch(err => console.error('[Cache] Store failed:', err.message));
+    }
+
     res.json({
       response: responseText,
       confidence,
       needsHuman,
       sources: ragResults.map(r => ({ filename: r.filename, similarity: r.similarity })),
-      language
+      language,
+      cached: false
     });
 
   } catch (error) {

@@ -16,7 +16,7 @@ const router = express.Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { userEmail, userName, subject, currentPage, ticketType, userPriority, mood } = req.body;
+    const { userEmail, userName, subject, currentPage, ticketType, userPriority, mood, environment, categoryId } = req.body;
 
     // Validate required fields
     if (!userEmail || !userName) {
@@ -48,7 +48,9 @@ router.post('/', async (req, res) => {
       metadata: {
         userAgent,
         ipAddress,
-        currentPage: currentPage || ''
+        currentPage: currentPage || '',
+        environment: environment || null,
+        categoryId: categoryId || null
       }
     });
 
@@ -378,6 +380,32 @@ router.delete('/:sessionId', authenticateAgent, async (req, res) => {
     });
   } catch (err) {
     console.error('Delete chat error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PATCH /api/chat/:sessionId/category
+ * Set workflow category on a chat
+ */
+router.patch('/:sessionId/category', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { categoryId } = req.body;
+
+    const chat = await Chat.findOne({ sessionId });
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    if (!chat.metadata) chat.metadata = {};
+    chat.metadata.categoryId = categoryId;
+    chat.markModified('metadata');
+    await chat.save();
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Set category error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

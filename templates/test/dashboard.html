@@ -35,7 +35,7 @@
     .mode-tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; }
     .mode-tag.ai { background: #6C5CE733; color: #6C5CE7; }
     .mode-tag.human { background: #00b89433; color: #00b894; }
-    .center { display: flex; flex-direction: column; }
+    .center { display: flex; flex-direction: column; position: relative; }
     .chat-header-bar { padding: 15px 20px; background: #16213e; border-bottom: 1px solid #2a2a4a; display: flex; justify-content: space-between; align-items: center; }
     .chat-header-bar .user-name { font-weight: 600; font-size: 16px; }
     .chat-header-bar .actions { display: flex; gap: 8px; }
@@ -144,6 +144,11 @@
     .login-box button { width: 100%; padding: 12px; background: #6C5CE7; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
     .login-box button:hover { background: #5a4bd1; }
     .login-box .error { color: #e74c3c; font-size: 13px; text-align: center; margin-top: 10px; display: none; }
+    /* Split panel styles */
+    .split-panel { border-right: 1px solid #2a2a4a; }
+    .split-panel:last-child { border-right: none; }
+    /* Categories page */
+    #categories-page { display: none; height: calc(100vh - 82px); padding: 30px; overflow-y: auto; }
   </style>
 </head>
 <body>
@@ -176,6 +181,7 @@
     <span style="margin-left:auto;">
       <button class="tab-btn active" id="tab-chats" onclick="switchTab('chats')">Chats</button>
       <button class="tab-btn" id="tab-kb" onclick="switchTab('kb')">Knowledge Base</button>
+      <button class="tab-btn" id="tab-categories" onclick="switchTab('categories')">Categories</button>
     </span>
   </div>
 
@@ -186,30 +192,12 @@
       <div id="chat-list"></div>
     </div>
 
-    <!-- Center: Chat View -->
-    <div class="center">
+    <!-- Center: Chat Panels Container (split screen) -->
+    <div class="center" id="chat-panels-container">
       <div id="chat-view-empty" class="empty-state">
         <div style="font-size: 40px; opacity: 0.3;">&#x1F4AC;</div>
         <div>Select a chat from the sidebar</div>
-        <div style="font-size: 12px; color: #555;">Or wait for incoming chats</div>
-      </div>
-      <div id="chat-view" style="display:none; flex-direction: column; height: 100%;">
-        <div class="chat-header-bar">
-          <div>
-            <span class="user-name" id="chat-user-name">User</span>
-            <span class="mode-tag ai" id="chat-mode-badge">AI</span>
-          </div>
-          <div class="actions">
-            <button class="btn btn-takeover" id="btn-takeover" onclick="takeover()">Take Over</button>
-            <button class="btn btn-return" id="btn-return" onclick="returnToAI()" style="display:none;">Return to AI</button>
-            <button class="btn btn-suggest" id="btn-suggest" onclick="suggestReply()" style="display:none;">Suggest Reply</button>
-          </div>
-        </div>
-        <div class="messages" id="messages"></div>
-        <div class="agent-input" id="agent-input-area" style="display:none;">
-          <input type="text" id="agent-message" placeholder="Type a message as agent..." onkeydown="if(event.key==='Enter') sendAgentMessage()">
-          <button onclick="sendAgentMessage()">Send</button>
-        </div>
+        <div style="font-size: 12px; color: #555;">Click to open, click another to add to split view (up to 4)</div>
       </div>
     </div>
 
@@ -220,12 +208,20 @@
         <div class="info-row"><span class="label">Name</span><span class="value" id="info-name">-</span></div>
         <div class="info-row"><span class="label">Email</span><span class="value" id="info-email">-</span></div>
         <div class="info-row"><span class="label">Page</span><span class="value" id="info-page">-</span></div>
+        <div class="info-row"><span class="label">URL</span><span class="value" id="info-url" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="">-</span></div>
         <div class="info-row"><span class="label">Category</span><span class="value" id="info-category">-</span></div>
         <div class="info-row"><span class="label">Ticket Type</span><span class="value" id="info-ticket-type">-</span></div>
         <div class="info-row"><span class="label">User Priority</span><span class="value" id="info-user-priority">-</span></div>
         <div class="info-row"><span class="label">Mood</span><span class="value" id="info-mood">-</span></div>
         <div class="info-row"><span class="label">Mode</span><span class="value" id="info-mode">-</span></div>
         <div class="info-row"><span class="label">Status</span><span class="value" id="info-status">-</span></div>
+      </div>
+
+      <div class="section" id="env-section" style="display:none;">
+        <h3 style="cursor:pointer;" onclick="toggleEnvSection()">
+          Environment <span id="env-toggle">&#x25B6;</span>
+        </h3>
+        <div id="env-details" style="display:none;"></div>
       </div>
 
       <div class="section">
@@ -294,6 +290,35 @@
     </table>
   </div>
 
+  <!-- Categories Management Page -->
+  <div id="categories-page" style="display:none; height:calc(100vh - 82px); padding:30px; overflow-y:auto;">
+    <h2 style="color:#6C5CE7; margin-bottom:20px;">Workflow Categories</h2>
+    <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:end;">
+      <div>
+        <label style="font-size:11px; color:#888;">Name</label>
+        <input type="text" id="cat-name" placeholder="e.g. PreSales" style="display:block; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:13px; width:150px;">
+      </div>
+      <div>
+        <label style="font-size:11px; color:#888;">Icon</label>
+        <input type="text" id="cat-icon" value="&#x1F4AC;" style="display:block; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:13px; width:60px;">
+      </div>
+      <div style="flex:1; min-width:200px;">
+        <label style="font-size:11px; color:#888;">AI Prompt</label>
+        <input type="text" id="cat-prompt" placeholder="System prompt for this category..." style="display:block; width:100%; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:13px;">
+      </div>
+      <div>
+        <label style="font-size:11px; color:#888;">Active</label>
+        <input type="checkbox" id="cat-active" checked style="display:block; margin-top:8px;">
+      </div>
+      <button class="kb-btn kb-btn-primary" onclick="addCategory()" style="height:36px;">Add Category</button>
+    </div>
+    <div id="cat-status" class="kb-status"></div>
+    <table class="kb-table">
+      <thead><tr><th>Icon</th><th>Name</th><th>Prompt</th><th>Active</th><th>Actions</th></tr></thead>
+      <tbody id="cat-list"></tbody>
+    </table>
+  </div>
+
   <!-- KB View/Edit Modal -->
   <div id="kb-modal">
     <div class="kb-modal-content">
@@ -312,14 +337,23 @@
     </div>
   </div>
 
+  <!-- Lightbox overlay for image attachments -->
+  <div id="lightbox" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:10000; cursor:pointer; align-items:center; justify-content:center;" onclick="this.style.display='none'">
+    <img id="lightbox-img" style="max-width:90vw; max-height:90vh; border-radius:8px;">
+  </div>
+
   <script>
     const API = 'http://localhost:8004';
     let token = null;
     let agentId = null;
     let agentName = '';
-    let selectedChat = null; // { sessionId, chatId, mode }
+    let selectedChat = null; // { sessionId, chatId, mode, userName, userEmail }
     let chatList = [];
     let ws = null;
+
+    // Multi-chat split screen state
+    let activeChats = []; // Array of { sessionId, chatId, mode, userName, userEmail }
+    const MAX_SPLIT = 4;
 
     function log(msg) {
       const el = document.getElementById('log');
@@ -396,9 +430,10 @@
         const priority = chat.priority || 'low';
         const mode = chat.mode || 'ai';
         const isSelected = selectedChat && selectedChat.sessionId === chat.sessionId;
+        const isInSplit = activeChats.some(ac => ac.sessionId === chat.sessionId);
         const tktIcon = ticketIcons[chat.ticketType] || '';
         return `
-          <div class="chat-item ${isSelected ? 'active' : ''}" onclick="selectChat('${chat.sessionId}')">
+          <div class="chat-item ${isSelected ? 'active' : ''} ${isInSplit && !isSelected ? 'in-split' : ''}" onclick="selectChat('${chat.sessionId}')" style="${isInSplit && !isSelected ? 'border-left: 3px solid #00b894;' : ''}">
             <div class="name">${tktIcon ? tktIcon + ' ' : ''}${chat.userName || 'Anonymous'}</div>
             <div class="preview">${chat.summary || chat.category || 'New conversation'}</div>
             <div class="meta">
@@ -412,10 +447,26 @@
       }).join('');
     }
 
-    // --- Select chat ---
+    // --- Select chat (multi-panel) ---
     async function selectChat(sessionId) {
       const chat = chatList.find(c => c.sessionId === sessionId);
       if (!chat) return;
+
+      // Check if already in activeChats
+      const existing = activeChats.findIndex(ac => ac.sessionId === sessionId);
+      if (existing === -1) {
+        if (activeChats.length >= MAX_SPLIT) {
+          alert('Maximum 4 chats open. Close one first.');
+          return;
+        }
+        activeChats.push({
+          sessionId: chat.sessionId,
+          chatId: chat._id,
+          mode: chat.mode,
+          userName: chat.userName,
+          userEmail: chat.userEmail
+        });
+      }
 
       selectedChat = {
         sessionId: chat.sessionId,
@@ -425,20 +476,15 @@
         userEmail: chat.userEmail
       };
 
-      document.getElementById('chat-view-empty').style.display = 'none';
-      document.getElementById('chat-view').style.display = 'flex';
       log(`Selected chat: ${chat.userName} (${sessionId.substring(0, 8)}...)`);
 
-      // Update header
-      const tktIcons = { bug: '\u{1F41B}', feature: '\u2728', question: '\u2753', support: '\u{1F3AB}' };
-      const tktIcon = tktIcons[chat.ticketType] || '';
-      document.getElementById('chat-user-name').textContent = (tktIcon ? tktIcon + ' ' : '') + (chat.userName || 'Anonymous');
-      updateModeUI(chat.mode);
-
-      // Update info panel
+      // Update right panel info
       document.getElementById('info-name').textContent = chat.userName || '-';
       document.getElementById('info-email').textContent = chat.userEmail || '-';
       document.getElementById('info-page').textContent = chat.metadata?.currentPage || '-';
+      const userUrl = chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || '-';
+      document.getElementById('info-url').textContent = userUrl;
+      document.getElementById('info-url').title = userUrl;
       document.getElementById('info-category').textContent = chat.category || '-';
       document.getElementById('info-ticket-type').textContent = chat.ticketType || '-';
       document.getElementById('info-user-priority').textContent = chat.userPriority || '-';
@@ -447,65 +493,294 @@
       document.getElementById('info-mode').textContent = (chat.mode || 'ai').toUpperCase();
       document.getElementById('info-status').textContent = chat.status || '-';
 
+      // Environment info
+      const env = chat.metadata?.environment;
+      if (env) {
+        document.getElementById('env-section').style.display = 'block';
+        const envEl = document.getElementById('env-details');
+        envEl.innerHTML = [
+          {l:'Browser', v: parseUA(env.browser)},
+          {l:'Platform', v: env.platform},
+          {l:'Language', v: env.language},
+          {l:'Screen', v: `${env.screenWidth}x${env.screenHeight} @${env.devicePixelRatio}x`},
+          {l:'Window', v: `${env.windowWidth}x${env.windowHeight}`},
+          {l:'Timezone', v: env.timezone},
+          {l:'Online', v: env.online ? 'Yes' : 'No'},
+          {l:'Connection', v: env.connectionType || '-'},
+          {l:'CPU Cores', v: env.hardwareConcurrency || '-'},
+          {l:'Memory', v: env.deviceMemory ? env.deviceMemory + 'GB' : '-'},
+          {l:'Touch', v: env.maxTouchPoints > 0 ? 'Yes (' + env.maxTouchPoints + ')' : 'No'},
+          {l:'Referrer', v: env.referrer || 'Direct'},
+          {l:'URL', v: env.currentUrl || '-'}
+        ].map(r => `<div class="info-row"><span class="label">${r.l}</span><span class="value" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(String(r.v))}">${escapeHtml(String(r.v))}</span></div>`).join('');
+      } else {
+        document.getElementById('env-section').style.display = 'none';
+      }
+
       // Register WS for this session
       if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'chat.join', sessionId, clientType: 'dashboard' }));
       }
 
-      // Load messages
-      try {
-        const res = await fetch(`${API}/api/chat/${sessionId}/messages`);
-        const messages = await res.json();
-        renderMessages(Array.isArray(messages) ? messages : []);
-      } catch (err) {
-        log(`Failed to load messages: ${err.message}`);
-      }
-
-      renderChatList(); // update active state
+      renderChatPanels();
+      renderChatList();
     }
 
-    function renderMessages(messages) {
-      const el = document.getElementById('messages');
-      if (messages.length === 0) {
-        el.innerHTML = '<div style="padding: 20px; color: #666; text-align: center;">No messages yet</div>';
+    // --- Multi-panel rendering ---
+    function renderChatPanels() {
+      const container = document.getElementById('chat-panels-container');
+      const emptyState = document.getElementById('chat-view-empty');
+
+      if (activeChats.length === 0) {
+        emptyState.style.display = 'flex';
+        container.style.display = 'flex';
+        container.style.gridTemplateColumns = '';
+        container.style.gridTemplateRows = '';
+        container.querySelectorAll('.split-panel').forEach(p => p.remove());
         return;
       }
 
-      el.innerHTML = messages.map(msg => {
-        const sender = msg.sender || 'user';
-        const time = new Date(msg.sentAt).toLocaleTimeString();
-        const senderLabel = sender === 'user' ? 'Customer' : sender === 'ai' ? 'AI Assistant' : msg.senderName || 'Agent';
+      emptyState.style.display = 'none';
 
-        if (msg.isInternal) {
-          return `<div class="message internal"><div class="sender">Internal Note</div><div class="bubble">${escapeHtml(msg.content)}</div><div class="time">${time}</div></div>`;
-        }
+      // Set grid layout
+      if (activeChats.length === 1) {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = '1fr';
+        container.style.gridTemplateRows = '1fr';
+      } else if (activeChats.length <= 3) {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = `repeat(${activeChats.length}, 1fr)`;
+        container.style.gridTemplateRows = '1fr';
+      } else {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = '1fr 1fr';
+        container.style.gridTemplateRows = '1fr 1fr';
+      }
 
-        return `
-          <div class="message ${sender}">
-            <div class="sender">${senderLabel}</div>
-            <div class="bubble">${escapeHtml(msg.content)}</div>
-            <div class="time">${time}</div>
+      // Remove old panels
+      container.querySelectorAll('.split-panel').forEach(p => p.remove());
+
+      // Create panels
+      activeChats.forEach((ac, idx) => {
+        const panel = document.createElement('div');
+        panel.className = 'split-panel';
+        panel.dataset.sessionId = ac.sessionId;
+        panel.style.cssText = 'display:flex; flex-direction:column; overflow:hidden;';
+
+        const isHuman = ac.mode === 'human';
+        const isSelected = selectedChat && selectedChat.sessionId === ac.sessionId;
+        panel.innerHTML = `
+          <div style="padding:8px 12px; background:${isSelected ? '#1a2a4e' : '#16213e'}; border-bottom:1px solid #2a2a4a; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+            <span style="font-weight:600; font-size:13px; cursor:pointer;" onclick="focusPanel('${ac.sessionId}')">${escapeHtml(ac.userName || 'Anonymous')}</span>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <span class="mode-tag ${ac.mode || 'ai'}" style="font-size:10px;">${(ac.mode || 'ai').toUpperCase()}</span>
+              <button class="btn btn-takeover" style="font-size:10px; padding:3px 8px; ${isHuman ? 'display:none' : ''}" onclick="takeoverPanel(${idx})">Take Over</button>
+              <button class="btn btn-return" style="font-size:10px; padding:3px 8px; ${isHuman ? '' : 'display:none'}" onclick="returnPanel(${idx})">Return</button>
+              <button style="background:none; border:none; color:#666; cursor:pointer; font-size:16px;" onclick="closePanel(${idx})" title="Close">&times;</button>
+            </div>
+          </div>
+          <div class="messages" id="panel-messages-${idx}" style="flex:1; padding:12px; overflow-y:auto;"></div>
+          <div style="padding:8px 12px; background:#16213e; border-top:1px solid #2a2a4a; display:${isHuman ? 'flex' : 'none'}; gap:6px;" id="panel-input-${idx}">
+            <input type="text" style="flex:1; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 10px; border-radius:6px; font-size:13px;" placeholder="Type..." onkeydown="if(event.key==='Enter') sendPanelMessage(${idx})">
+            <button style="background:#6C5CE7; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;" onclick="sendPanelMessage(${idx})">Send</button>
           </div>
         `;
-      }).join('');
-      el.scrollTop = el.scrollHeight;
+        container.appendChild(panel);
+
+        // Load messages for this panel
+        loadPanelMessages(idx);
+      });
     }
 
-    function updateModeUI(mode) {
-      const badge = document.getElementById('chat-mode-badge');
-      badge.textContent = (mode || 'ai').toUpperCase();
-      badge.className = `mode-tag ${mode || 'ai'}`;
+    function focusPanel(sessionId) {
+      const chat = chatList.find(c => c.sessionId === sessionId);
+      if (!chat) return;
+      selectedChat = {
+        sessionId: chat.sessionId,
+        chatId: chat._id,
+        mode: chat.mode,
+        userName: chat.userName,
+        userEmail: chat.userEmail
+      };
+      // Update right panel info
+      document.getElementById('info-name').textContent = chat.userName || '-';
+      document.getElementById('info-email').textContent = chat.userEmail || '-';
+      document.getElementById('info-page').textContent = chat.metadata?.currentPage || '-';
+      const userUrl = chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || '-';
+      document.getElementById('info-url').textContent = userUrl;
+      document.getElementById('info-url').title = userUrl;
+      document.getElementById('info-category').textContent = chat.category || '-';
+      document.getElementById('info-ticket-type').textContent = chat.ticketType || '-';
+      document.getElementById('info-user-priority').textContent = chat.userPriority || '-';
+      const moodEmojis = { 1: '\u{1F621}', 2: '\u{1F615}', 3: '\u{1F610}', 4: '\u{1F642}', 5: '\u{1F929}' };
+      document.getElementById('info-mood').textContent = chat.mood ? `${moodEmojis[chat.mood] || ''} (${chat.mood}/5)` : '-';
+      document.getElementById('info-mode').textContent = (chat.mode || 'ai').toUpperCase();
+      document.getElementById('info-status').textContent = chat.status || '-';
 
-      const isHuman = mode === 'human';
-      document.getElementById('btn-takeover').style.display = isHuman ? 'none' : '';
-      document.getElementById('btn-return').style.display = isHuman ? '' : 'none';
-      document.getElementById('btn-suggest').style.display = isHuman ? '' : 'none';
-      document.getElementById('agent-input-area').style.display = isHuman ? 'flex' : 'none';
+      // Environment info
+      const env = chat.metadata?.environment;
+      if (env) {
+        document.getElementById('env-section').style.display = 'block';
+        const envEl = document.getElementById('env-details');
+        envEl.innerHTML = [
+          {l:'Browser', v: parseUA(env.browser)},
+          {l:'Platform', v: env.platform},
+          {l:'Language', v: env.language},
+          {l:'Screen', v: `${env.screenWidth}x${env.screenHeight} @${env.devicePixelRatio}x`},
+          {l:'Window', v: `${env.windowWidth}x${env.windowHeight}`},
+          {l:'Timezone', v: env.timezone},
+          {l:'Online', v: env.online ? 'Yes' : 'No'},
+          {l:'Connection', v: env.connectionType || '-'},
+          {l:'CPU Cores', v: env.hardwareConcurrency || '-'},
+          {l:'Memory', v: env.deviceMemory ? env.deviceMemory + 'GB' : '-'},
+          {l:'Touch', v: env.maxTouchPoints > 0 ? 'Yes (' + env.maxTouchPoints + ')' : 'No'},
+          {l:'Referrer', v: env.referrer || 'Direct'},
+          {l:'URL', v: env.currentUrl || '-'}
+        ].map(r => `<div class="info-row"><span class="label">${r.l}</span><span class="value" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(String(r.v))}">${escapeHtml(String(r.v))}</span></div>`).join('');
+      } else {
+        document.getElementById('env-section').style.display = 'none';
+      }
+
+      renderChatPanels();
+      renderChatList();
     }
 
-    // --- Agent actions ---
+    async function loadPanelMessages(idx) {
+      const ac = activeChats[idx];
+      if (!ac) return;
+      try {
+        const res = await fetch(`${API}/api/chat/${ac.sessionId}/messages`);
+        const messages = await res.json();
+        const el = document.getElementById('panel-messages-' + idx);
+        if (!el) return;
+        const msgs = Array.isArray(messages) ? messages : [];
+        el.innerHTML = msgs.map(msg => {
+          const sender = msg.sender || 'user';
+          const time = new Date(msg.sentAt).toLocaleTimeString();
+          const senderLabel = sender === 'user' ? 'Customer' : sender === 'ai' ? 'AI Assistant' : msg.senderName || 'Agent';
+          let attachHtml = '';
+          if (msg.attachments && msg.attachments.length > 0) {
+            msg.attachments.forEach(att => {
+              const url = att.url && att.url.startsWith('http') ? att.url : API + (att.url || '');
+              const name = att.filename || att.originalName || 'file';
+              if (att.type && att.type.startsWith('image/')) {
+                attachHtml += `<div style="margin-top:6px;"><img src="${url}" style="max-width:150px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${url}')"></div>`;
+              } else if (att.type === 'application/pdf') {
+                attachHtml += `<div style="margin-top:6px;"><a href="${url}" target="_blank" style="color:#6C5CE7;">&#x1F4C4; ${escapeHtml(name)}</a></div>`;
+              } else {
+                attachHtml += `<div style="margin-top:4px;"><a href="${url}" target="_blank" style="color:#6C5CE7; font-size:12px;">&#x1F4CE; ${escapeHtml(name)}</a></div>`;
+              }
+            });
+          }
+          if (msg.isInternal) {
+            return `<div class="message internal"><div class="sender">Internal Note</div><div class="bubble">${escapeHtml(msg.content)}</div><div class="time">${time}</div></div>`;
+          }
+          return `<div class="message ${sender}"><div class="sender">${senderLabel}</div><div class="bubble">${escapeHtml(msg.content)}${attachHtml}</div><div class="time">${time}</div></div>`;
+        }).join('');
+        el.scrollTop = el.scrollHeight;
+      } catch (err) { log('Load messages error: ' + err.message); }
+    }
+
+    function closePanel(idx) {
+      const closedSessionId = activeChats[idx]?.sessionId;
+      activeChats.splice(idx, 1);
+      if (activeChats.length === 0) {
+        selectedChat = null;
+      } else if (selectedChat && selectedChat.sessionId === closedSessionId) {
+        // Select the first remaining chat
+        const ac = activeChats[0];
+        selectedChat = { sessionId: ac.sessionId, chatId: ac.chatId, mode: ac.mode, userName: ac.userName, userEmail: ac.userEmail };
+      }
+      renderChatPanels();
+      renderChatList();
+    }
+
+    async function takeoverPanel(idx) {
+      const ac = activeChats[idx];
+      if (!ac) return;
+      try {
+        const res = await fetch(API + '/api/chat/' + ac.sessionId + '/takeover', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (data.success) {
+          ac.mode = 'human';
+          if (selectedChat && selectedChat.sessionId === ac.sessionId) selectedChat.mode = 'human';
+          log('Took over chat: ' + ac.userName);
+          renderChatPanels();
+          loadChats();
+        }
+      } catch (err) { log('Takeover error: ' + err.message); }
+    }
+
+    async function returnPanel(idx) {
+      const ac = activeChats[idx];
+      if (!ac) return;
+      try {
+        const res = await fetch(API + '/api/chat/' + ac.sessionId + '/return-to-ai', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (data.success) {
+          ac.mode = 'ai';
+          if (selectedChat && selectedChat.sessionId === ac.sessionId) selectedChat.mode = 'ai';
+          log('Returned to AI: ' + ac.userName);
+          renderChatPanels();
+          loadChats();
+        }
+      } catch (err) { log('Return error: ' + err.message); }
+    }
+
+    async function sendPanelMessage(idx) {
+      const ac = activeChats[idx];
+      if (!ac) return;
+      const input = document.querySelector(`#panel-input-${idx} input`);
+      const content = input.value.trim();
+      if (!content) return;
+      input.value = '';
+      try {
+        await fetch(API + '/api/messages', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId: ac.chatId, content, sender: 'agent' })
+        });
+        loadPanelMessages(idx);
+      } catch (err) { log('Send error: ' + err.message); }
+    }
+
+    // --- Helper functions ---
+    function parseUA(ua) {
+      if (!ua) return '-';
+      if (ua.includes('Chrome')) return 'Chrome';
+      if (ua.includes('Firefox')) return 'Firefox';
+      if (ua.includes('Safari')) return 'Safari';
+      if (ua.includes('Edge')) return 'Edge';
+      return ua.substring(0, 30);
+    }
+
+    function toggleEnvSection() {
+      const d = document.getElementById('env-details');
+      const t = document.getElementById('env-toggle');
+      if (d.style.display === 'none') { d.style.display = 'block'; t.innerHTML = '&#x25BC;'; }
+      else { d.style.display = 'none'; t.innerHTML = '&#x25B6;'; }
+    }
+
+    function openLightbox(url) {
+      document.getElementById('lightbox-img').src = url;
+      document.getElementById('lightbox').style.display = 'flex';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // --- Agent actions (legacy, kept for canned responses) ---
     async function takeover() {
       if (!selectedChat) return;
+      const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
+      if (idx !== -1) { takeoverPanel(idx); return; }
       try {
         const res = await fetch(`${API}/api/chat/${selectedChat.sessionId}/takeover`, {
           method: 'POST',
@@ -515,7 +790,6 @@
         if (data.success) {
           log(`Took over chat from AI`);
           selectedChat.mode = 'human';
-          updateModeUI('human');
           loadChats();
         } else {
           log(`Takeover failed: ${data.error || 'unknown'}`);
@@ -525,6 +799,8 @@
 
     async function returnToAI() {
       if (!selectedChat) return;
+      const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
+      if (idx !== -1) { returnPanel(idx); return; }
       try {
         const res = await fetch(`${API}/api/chat/${selectedChat.sessionId}/return-to-ai`, {
           method: 'POST',
@@ -534,7 +810,6 @@
         if (data.success) {
           log('Returned chat to AI');
           selectedChat.mode = 'ai';
-          updateModeUI('ai');
           loadChats();
         }
       } catch (err) { log(`Return error: ${err.message}`); }
@@ -551,7 +826,12 @@
         });
         const data = await res.json();
         if (data.suggestedReply) {
-          document.getElementById('agent-message').value = data.suggestedReply;
+          // Put suggestion in the active panel's input
+          const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
+          if (idx !== -1) {
+            const input = document.querySelector(`#panel-input-${idx} input`);
+            if (input) input.value = data.suggestedReply;
+          }
           log('AI suggestion loaded');
         } else {
           log(`Suggest failed: ${data.error || 'no suggestion'}`);
@@ -560,27 +840,9 @@
     }
 
     async function sendAgentMessage() {
-      const input = document.getElementById('agent-message');
-      const content = input.value.trim();
-      if (!content || !selectedChat) return;
-
-      try {
-        // Save message via messages API
-        const res = await fetch(`${API}/api/messages`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chatId: selectedChat.chatId,
-            content,
-            sender: 'agent'
-          })
-        });
-        const data = await res.json();
-        input.value = '';
-
-        // Reload messages
-        selectChat(selectedChat.sessionId);
-      } catch (err) { log(`Send error: ${err.message}`); }
+      if (!selectedChat) return;
+      const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
+      if (idx !== -1) { sendPanelMessage(idx); return; }
     }
 
     async function addNote() {
@@ -600,7 +862,9 @@
         });
         input.value = '';
         log('Internal note added');
-        selectChat(selectedChat.sessionId);
+        // Refresh the panel
+        const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
+        if (idx !== -1) loadPanelMessages(idx);
       } catch (err) { log(`Note error: ${err.message}`); }
     }
 
@@ -614,12 +878,13 @@
         const data = await res.json();
         if (data.success) {
           log(`Deleted chat with ${userName} (${data.deletedMessages} messages)`);
-          // If this was the selected chat, clear the view
+          // Remove from activeChats if present
+          const idx = activeChats.findIndex(ac => ac.sessionId === sessionId);
+          if (idx !== -1) activeChats.splice(idx, 1);
           if (selectedChat && selectedChat.sessionId === sessionId) {
-            selectedChat = null;
-            document.getElementById('chat-view').style.display = 'none';
-            document.getElementById('chat-view-empty').style.display = 'flex';
+            selectedChat = activeChats.length > 0 ? { ...activeChats[0] } : null;
           }
+          renderChatPanels();
           loadChats();
         } else {
           log(`Delete failed: ${data.error}`);
@@ -631,8 +896,12 @@
     }
 
     function useCanned(text) {
-      document.getElementById('agent-message').value = text;
-      document.getElementById('agent-message').focus();
+      if (!selectedChat) return;
+      const idx = activeChats.findIndex(ac => ac.sessionId === selectedChat.sessionId);
+      if (idx !== -1) {
+        const input = document.querySelector(`#panel-input-${idx} input`);
+        if (input) { input.value = text; input.focus(); }
+      }
     }
 
     // --- WebSocket ---
@@ -650,12 +919,12 @@
             const data = JSON.parse(e.data);
             log(`WS: ${data.type}`);
 
-            // Refresh on any relevant event
             if (data.type && data.type !== 'error') {
               loadChats();
-              // Refresh current chat messages
-              if (selectedChat && data.sessionId === selectedChat.sessionId) {
-                setTimeout(() => selectChat(selectedChat.sessionId), 500);
+              // Refresh matching panel
+              const panelIdx = activeChats.findIndex(ac => ac.sessionId === data.sessionId);
+              if (panelIdx !== -1) {
+                setTimeout(() => loadPanelMessages(panelIdx), 500);
               }
             }
           } catch {}
@@ -786,12 +1055,6 @@
       }
     }
 
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
     // Allow Enter to login
     document.getElementById('login-password').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') login();
@@ -801,10 +1064,12 @@
     function switchTab(tab) {
       document.getElementById('tab-chats').classList.toggle('active', tab === 'chats');
       document.getElementById('tab-kb').classList.toggle('active', tab === 'kb');
-      // Show/hide main grid vs KB page
+      document.getElementById('tab-categories').classList.toggle('active', tab === 'categories');
       document.querySelector('.main').style.display = tab === 'chats' ? 'grid' : 'none';
       document.getElementById('kb-page').classList.toggle('active', tab === 'kb');
+      document.getElementById('categories-page').style.display = tab === 'categories' ? 'block' : 'none';
       if (tab === 'kb') kbPageRefresh();
+      if (tab === 'categories') loadCategories();
     }
 
     // --- KB Page functions ---
@@ -930,6 +1195,63 @@
         if (data.error) { alert(data.error); }
         else { kbPageStatus('Document updated and re-embedded', 'success'); closeKBModal(); kbPageRefresh(); }
       } catch (err) { alert('Save failed: ' + err.message); }
+    }
+
+    // --- Categories CRUD ---
+    async function loadCategories() {
+      try {
+        const res = await fetch(API + '/api/categories/all', { headers: { 'Authorization': 'Bearer ' + token } });
+        const cats = await res.json();
+        const el = document.getElementById('cat-list');
+        const items = Array.isArray(cats) ? cats : [];
+        if (!items.length) { el.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#666; padding:30px;">No categories. Add one above.</td></tr>'; return; }
+        el.innerHTML = items.map(c => `<tr>
+          <td>${c.icon || ''}</td>
+          <td>${escapeHtml(c.name)}</td>
+          <td style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(c.prompt || '')}">${escapeHtml(c.prompt || '')}</td>
+          <td><input type="checkbox" ${c.active ? 'checked' : ''} onchange="toggleCategory('${c._id}', this.checked)"></td>
+          <td><div class="actions-cell"><button class="btn-del" onclick="deleteCategory('${c._id}')">Delete</button></div></td>
+        </tr>`).join('');
+      } catch (err) { log('Categories load error: ' + err.message); }
+    }
+
+    async function addCategory() {
+      const name = document.getElementById('cat-name').value.trim();
+      const icon = document.getElementById('cat-icon').value.trim() || '\u{1F4AC}';
+      const prompt = document.getElementById('cat-prompt').value.trim();
+      const active = document.getElementById('cat-active').checked;
+      if (!name || !prompt) { alert('Name and prompt are required'); return; }
+      try {
+        await fetch(API + '/api/categories', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, icon, prompt, active })
+        });
+        document.getElementById('cat-name').value = '';
+        document.getElementById('cat-prompt').value = '';
+        loadCategories();
+      } catch (err) { log('Add category error: ' + err.message); }
+    }
+
+    async function toggleCategory(id, active) {
+      try {
+        await fetch(API + '/api/categories/' + id, {
+          method: 'PUT',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active })
+        });
+      } catch (err) { log('Toggle category error: ' + err.message); }
+    }
+
+    async function deleteCategory(id) {
+      if (!confirm('Delete this category?')) return;
+      try {
+        await fetch(API + '/api/categories/' + id, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        loadCategories();
+      } catch (err) { log('Delete category error: ' + err.message); }
     }
 
     // Poll for new chats

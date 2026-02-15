@@ -85,6 +85,24 @@ const cannedResponseSchema = new mongoose.Schema({
   active: { type: Boolean, default: true }
 }, { timestamps: true });
 
+const workflowCategorySchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  icon: { type: String, default: '💬' },
+  prompt: { type: String, required: true },
+  active: { type: Boolean, default: true },
+  sortOrder: { type: Number, default: 0 }
+}, { timestamps: true });
+
+const responseCacheSchema = new mongoose.Schema({
+  questionEmbedding: { type: [Number], required: true },
+  question: { type: String, required: true },
+  response: { type: String, required: true },
+  confidence: Number,
+  sources: [String],
+  hitCount: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now, expires: 604800 } // 7-day TTL
+}, { timestamps: true });
+
 const teamsConversationSchema = new mongoose.Schema({
   sessionId: { type: String, required: true, unique: true, index: true },
   conversationReference: { type: mongoose.Schema.Types.Mixed, required: true },
@@ -100,6 +118,8 @@ const Agent = mongoose.model('aichatdesk_agents', agentSchema);
 const KnowledgeBase = mongoose.model('aichatdesk_knowledge_base', knowledgeBaseSchema);
 const Embedding = mongoose.model('aichatdesk_embeddings', embeddingSchema);
 const CannedResponse = mongoose.model('aichatdesk_canned_responses', cannedResponseSchema);
+const WorkflowCategory = mongoose.model('aichatdesk_workflow_categories', workflowCategorySchema);
+const ResponseCache = mongoose.model('aichatdesk_response_cache', responseCacheSchema);
 const TeamsConversation = mongoose.model('aichatdesk_teams_conversations', teamsConversationSchema);
 
 module.exports = {
@@ -109,5 +129,7 @@ module.exports = {
   KnowledgeBase,
   Embedding,
   CannedResponse,
+  WorkflowCategory,
+  ResponseCache,
   TeamsConversation
 };

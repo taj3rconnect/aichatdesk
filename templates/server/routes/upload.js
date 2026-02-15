@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/fileUpload');
 
+// Blocked file extensions (dangerous/executable)
+const BLOCKED_EXTENSIONS = [
+  '.exe', '.com', '.bat', '.cmd', '.scr', '.pif', '.msi',
+  '.vbs', '.js', '.ws', '.wsf', '.ps1', '.sh', '.cpl', '.inf', '.reg'
+];
+
 // POST /api/upload - File upload endpoint with validation and storage
 router.post('/', upload.array('files', 5), (req, res) => {
   try {
@@ -11,6 +17,18 @@ router.post('/', upload.array('files', 5), (req, res) => {
         error: 'No files uploaded',
         message: 'Please select at least one file to upload'
       });
+    }
+
+    // Check for blocked file extensions
+    for (const file of req.files) {
+      const ext = '.' + file.originalname.split('.').pop().toLowerCase();
+      if (BLOCKED_EXTENSIONS.includes(ext)) {
+        return res.status(400).json({
+          error: 'Blocked file type',
+          message: `File type "${ext}" is not allowed for security reasons`,
+          blockedFile: file.originalname
+        });
+      }
     }
 
     // Get client IP for security audit
