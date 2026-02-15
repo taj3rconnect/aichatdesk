@@ -425,7 +425,7 @@
 
   <div class="header">
     <h1 style="cursor:pointer;" onclick="switchTab('chats')">AIChatDesk Agent Dashboard</h1>
-    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.02 <span style="margin-left: 10px;">02/14 -- 23:06</span></span>
+    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.03 <span style="margin-left: 10px;">02/15 -- 12:13 AM</span></span>
     <div class="agent-info">
       <span><span class="status-dot" id="agent-dot"></span> <span id="agent-name" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;" onclick="openProfileModal()" title="My Profile">Agent</span></span>
       <span style="color: #666;">|</span>
@@ -1172,9 +1172,12 @@
           ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#17a34a;margin-right:6px;flex-shrink:0;" title="Active"></span>'
           : '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6b7280;margin-right:6px;flex-shrink:0;font-size:7px;text-align:center;line-height:10px;color:#fff;" title="Done">&#x2713;</span>';
         const statusLabel = isActive ? 'Active' : 'Done';
+        const chatStart = chat.startedAt || chat.createdAt;
+        const chatEnd = chat.endedAt;
         return `
           <div class="chat-item ${isSelected ? 'active' : ''} ${isInSplit && !isSelected ? 'in-split' : ''}" onclick="selectChat('${chat.sessionId}')" style="${isInSplit && !isSelected ? 'border-left: 3px solid #00b894;' : ''}">
             <div class="name" style="display:flex;align-items:center;">${statusDot}${tktIcon ? tktIcon + ' ' : ''}${chat.userName || 'Anonymous'}${chat.metadata?.profanity ? ' <span style="background:#dc2626;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:4px;" title="Profanity detected">XX</span>' : ''} <span style="margin-left:auto;font-size:10px;color:${isActive ? '#17a34a' : '#8c9bab'};font-weight:600;">${statusLabel}</span></div>
+            <div style="font-size:11px;color:#8c9bab;font-family:monospace;margin-top:2px;" class="elapsed-timer" data-start="${chatStart || ''}" data-end="${chatEnd || ''}" data-active="${isActive}"></div>
             <div class="preview" style="color:#0061ff; font-size:11px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis;" title="${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}">${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}</div>
             <div class="preview">${chat.summary || chat.category || 'New conversation'}</div>
             <div class="meta">
@@ -1187,7 +1190,30 @@
           </div>
         `;
       }).join('');
+      updateElapsedTimers();
     }
+
+    function formatElapsed(ms) {
+      const s = Math.floor(ms / 1000);
+      const h = String(Math.floor(s / 3600)).padStart(2, '0');
+      const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+      const sec = String(s % 60).padStart(2, '0');
+      return `${h}:${m}:${sec}`;
+    }
+
+    function updateElapsedTimers() {
+      document.querySelectorAll('.elapsed-timer').forEach(el => {
+        const start = el.dataset.start;
+        if (!start) return;
+        const isActive = el.dataset.active === 'true';
+        const end = isActive ? Date.now() : (el.dataset.end ? new Date(el.dataset.end).getTime() : Date.now());
+        const elapsed = end - new Date(start).getTime();
+        if (elapsed < 0) return;
+        el.textContent = formatElapsed(elapsed);
+      });
+    }
+
+    setInterval(updateElapsedTimers, 1000);
 
     // --- Select chat (multi-panel) ---
     async function selectChat(sessionId) {
