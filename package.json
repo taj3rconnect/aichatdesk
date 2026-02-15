@@ -1,18 +1,35 @@
 {
-  "name": "@claude-plugins/aichatdesk",
+  "name": "aichatdesk",
   "version": "0.1.0",
-  "description": "AI customer support widget plugin for Claude Code",
+  "description": "AI-powered customer support chat widget with RAG, live agent handoff, and Office 365 calendar booking",
+  "main": "templates/server/index.js",
+  "scripts": {
+    "start": "node templates/server/index.js",
+    "dev": "nodemon templates/server/index.js",
+    "install:server": "cd templates/server && npm install",
+    "install:dashboard": "cd templates/dashboard && npm install",
+    "install:all": "npm run install:server && npm run install:dashboard",
+    "build:dashboard": "cd templates/dashboard && npm run build"
+  },
   "author": "Taj",
   "license": "MIT",
   "keywords": [
-    "claude-plugin",
-    "customer-support",
     "ai-chat",
+    "customer-support",
+    "chatbot",
     "rag",
-    "react"
+    "live-agent",
+    "office365",
+    "calendar-booking",
+    "claude-ai",
+    "websocket",
+    "knowledge-base"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/taj/aichatdesk"
+    "url": "https://github.com/taj3rconnect/aichatdesk"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
