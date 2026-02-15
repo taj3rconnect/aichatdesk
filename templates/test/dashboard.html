@@ -425,7 +425,7 @@
 
   <div class="header">
     <h1 style="cursor:pointer;" onclick="switchTab('chats')">AIChatDesk Agent Dashboard</h1>
-    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.04 <span style="margin-left: 10px;">02/15 -- 12:30 AM</span></span>
+    <span style="font-size: 11px; color: #8c9bab; margin-left: 14px; font-weight: 400; letter-spacing: 0.3px;">v1.05 <span style="margin-left: 10px;">02/15 -- 12:46 AM</span></span>
     <div class="agent-info">
       <span><span class="status-dot" id="agent-dot"></span> <span id="agent-name" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;" onclick="openProfileModal()" title="My Profile">Agent</span></span>
       <span style="color: #666;">|</span>
@@ -1196,8 +1196,10 @@
         return `
           <div class="chat-item ${isSelected ? 'active' : ''} ${isInSplit && !isSelected ? 'in-split' : ''}" onclick="selectChat('${chat.sessionId}')" style="${isInSplit && !isSelected ? 'border-left: 3px solid #00b894;' : ''}">
             <div class="name" style="display:flex;align-items:center;">${statusDot}${tktIcon ? tktIcon + ' ' : ''}${chat.userName || 'Anonymous'}${chat.metadata?.profanity ? ' <span style="background:#dc2626;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:4px;" title="Profanity detected">XX</span>' : ''} <span style="margin-left:auto;font-size:10px;color:${isActive ? '#17a34a' : '#8c9bab'};font-weight:600;">${statusLabel}</span></div>
-            <div style="font-size:11px;color:#8c9bab;font-family:monospace;margin-top:2px;" class="elapsed-timer" data-start="${chatStart || ''}" data-end="${chatEnd || ''}" data-active="${isActive}"></div>
-            <div class="preview" style="color:#0061ff; font-size:11px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis;" title="${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}">${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}</div>
+            <div style="display:flex;align-items:center;margin-top:2px;gap:4px;">
+              <div class="preview" style="color:#0061ff; font-size:11px; margin-bottom:0; overflow:hidden; text-overflow:ellipsis; flex:1;" title="${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}">${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}</div>
+              <span style="font-size:10px;color:#8c9bab;font-family:monospace;flex-shrink:0;" class="elapsed-timer" data-start="${chatStart || ''}" data-end="${chatEnd || ''}" data-active="${isActive}"></span>
+            </div>
             <div class="preview">${chat.summary || chat.category || 'New conversation'}</div>
             <div class="meta">
               <span class="priority-badge ${priority}">${priority}</span>
@@ -1470,7 +1472,9 @@
             return `<div class="message internal"><div class="sender">Internal Note</div><div class="bubble">${escapeHtml(msg.content)}</div><div class="time">${time}</div></div>`;
           }
           const pushBtn = `<button class="push-rag-btn" onclick="pushToRAG('${escapeHtml(msg.content).replace(/'/g, "\\'")}', '${sender}')" title="Push to Knowledge Base">&#x1F4DA;</button>`;
-          return `<div class="message ${sender}"><div class="sender">${senderLabel} ${pushBtn}</div><div class="bubble">${escapeHtml(msg.content)}${attachHtml}</div><div class="time">${time}</div></div>`;
+          let displayContent = escapeHtml(msg.content);
+          if (sender === 'user') displayContent = highlightProfanity(displayContent);
+          return `<div class="message ${sender}"><div class="sender">${senderLabel} ${pushBtn}</div><div class="bubble">${displayContent}${attachHtml}</div><div class="time">${time}</div></div>`;
         }).join('');
         el.scrollTop = el.scrollHeight;
       } catch (err) { log('Load messages error: ' + err.message); }
@@ -1598,6 +1602,12 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    const PROFANITY_LIST = ['fuck','shit','ass','bitch','damn','hell','crap','dick','cock','pussy','bastard','whore','slut','piss','cunt','twat','wanker','bollocks','arse','motherfucker','bullshit','asshole','dumbass','jackass','goddamn','stfu','wtf','fk','fck','sht'];
+    function highlightProfanity(html) {
+      const regex = new RegExp('\\b(' + PROFANITY_LIST.join('|') + ')\\b', 'gi');
+      return html.replace(regex, '<span style="color:#dc2626;font-weight:700;">$1</span>');
     }
 
     // --- Agent actions (legacy, kept for canned responses) ---

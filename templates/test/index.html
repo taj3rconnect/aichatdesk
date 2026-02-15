@@ -380,7 +380,6 @@
     <div class="chat-header">
       <div>
         <h3>Support Chat</h3>
-        <span class="mode-badge" id="mode-badge">AI Powered</span>
       </div>
       <div class="header-actions">
         <button class="header-icon-btn" onclick="toggleHeaderPopup('ticket-popup')" data-tooltip="Ticket Type">
@@ -401,9 +400,12 @@
         <button class="header-icon-btn" onclick="openCalendarPopup()" data-tooltip="Schedule Call">
           <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>
         </button>
-        <button onclick="bookDemo()" style="background:#f59e0b;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.3px;white-space:nowrap;">Book Demo</button>
         <button class="close-btn" onclick="closeAndEndChat()">&times;</button>
       </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 16px 6px 16px;background:linear-gradient(135deg, #6C5CE7, #a29bfe);">
+      <span class="mode-badge" id="mode-badge2" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.2);color:#fff;">AI Powered</span>
+      <button class="header-icon-btn" onclick="bookDemo()" style="background:none;color:#f59e0b;border:none;padding:0;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">Book&nbsp;Demo</button>
     </div>
 
     <div id="prechat-form">
@@ -493,20 +495,10 @@
           </button>
         </div>
       </div>
-      <!-- Step 1b: Contact info (phone & company) -->
-      <div id="cal-step-contact" style="display:none;">
-        <button class="cal-back-btn" onclick="calGoBack('type')">&larr; Back</button>
-        <div class="cal-title">Your Details</div>
-        <div class="cal-subtitle">So we can reach you</div>
-        <div style="padding:8px 0;">
-          <input type="tel" id="cal-phone" placeholder="Phone number" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
-          <input type="text" id="cal-company" placeholder="Company name" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
-        </div>
-        <button class="cal-confirm" onclick="calContactNext()" style="margin-top:12px;">Continue</button>
-      </div>
+      <!-- Contact step removed — phone/company now in confirm step -->
       <!-- Step 2: Select date & time -->
       <div id="cal-step-slots" style="display:none;">
-        <button class="cal-back-btn" onclick="calGoBack('contact')">&larr; Back</button>
+        <button class="cal-back-btn" onclick="calGoBack('type')">&larr; Back</button>
         <div class="cal-title" id="cal-slots-title">Pick a time</div>
         <div class="cal-date-tabs" id="cal-date-tabs"></div>
         <div id="cal-slots-container">
@@ -518,6 +510,10 @@
         <button class="cal-back-btn" onclick="calGoBack('slots')">&larr; Back</button>
         <div class="cal-title">Confirm Booking</div>
         <div class="cal-summary" id="cal-summary"></div>
+        <div style="margin:12px 0 8px;">
+          <input type="tel" id="cal-phone" placeholder="Phone number" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box;">
+          <input type="text" id="cal-company" placeholder="Company name" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">
+        </div>
         <button class="cal-confirm" onclick="confirmCalendarBooking()">Book Now</button>
       </div>
       <!-- Step 4: Success -->
@@ -851,6 +847,7 @@
       chatId = null;
       document.getElementById('chat-input').disabled = true;
       document.getElementById('chat-input').placeholder = 'Chat ended';
+      setTimeout(() => { document.getElementById('chat-window').classList.remove('open'); }, 1500);
     }
 
     // Close chat window AND end the session
@@ -1550,7 +1547,6 @@
       calMeetingType = null;
       calSelectedSlot = null;
       document.getElementById('cal-step-type').style.display = '';
-      document.getElementById('cal-step-contact').style.display = 'none';
       document.getElementById('cal-step-slots').style.display = 'none';
       document.getElementById('cal-step-confirm').style.display = 'none';
       document.getElementById('cal-step-success').style.display = 'none';
@@ -1568,31 +1564,26 @@
       calMeetingType = type;
       document.querySelectorAll('.cal-type-btn').forEach(b => b.classList.remove('selected'));
       if (event && event.currentTarget) event.currentTarget.classList.add('selected');
-      // Move to contact info step
-      document.getElementById('cal-step-type').style.display = 'none';
-      document.getElementById('cal-step-contact').style.display = 'block';
-    }
-
-    function calContactNext() {
-      const phone = document.getElementById('cal-phone').value.trim();
-      const company = document.getElementById('cal-company').value.trim();
-      if (!phone) { document.getElementById('cal-phone').focus(); return; }
-      if (!company) { document.getElementById('cal-company').focus(); return; }
       const labels = { call: 'Call', demo: 'Demo', meeting: 'Meeting' };
-      document.getElementById('cal-slots-title').textContent = `Pick a time for ${labels[calMeetingType]}`;
-      document.getElementById('cal-step-contact').style.display = 'none';
+      document.getElementById('cal-slots-title').textContent = `Pick a time for ${labels[type]}`;
+      document.getElementById('cal-step-type').style.display = 'none';
       document.getElementById('cal-step-slots').style.display = 'block';
       loadCalendarSlots();
     }
 
     function bookDemo() {
-      openCalendarPopup();
-      // Override: skip type, show contact step for demo
-      setTimeout(() => {
-        calMeetingType = 'demo';
-        document.getElementById('cal-step-type').style.display = 'none';
-        document.getElementById('cal-step-contact').style.display = 'block';
-      }, 50);
+      closeAllPopups();
+      calMeetingType = 'demo';
+      calSelectedSlot = null;
+      document.getElementById('cal-step-type').style.display = 'none';
+      document.getElementById('cal-step-slots').style.display = 'block';
+      document.getElementById('cal-step-confirm').style.display = 'none';
+      document.getElementById('cal-step-success').style.display = 'none';
+      document.getElementById('cal-phone').value = '';
+      document.getElementById('cal-company').value = '';
+      document.getElementById('cal-slots-title').textContent = 'Pick a time for Demo';
+      document.getElementById('calendar-popup').classList.add('open');
+      loadCalendarSlots();
     }
 
     async function loadCalendarSlots(fromDate) {
@@ -1671,13 +1662,9 @@
 
     function calGoBack(step) {
       if (step === 'type') {
-        document.getElementById('cal-step-contact').style.display = 'none';
         document.getElementById('cal-step-slots').style.display = 'none';
         document.getElementById('cal-step-type').style.display = 'block';
         calSelectedSlot = null;
-      } else if (step === 'contact') {
-        document.getElementById('cal-step-slots').style.display = 'none';
-        document.getElementById('cal-step-contact').style.display = 'block';
       } else if (step === 'slots') {
         document.getElementById('cal-step-confirm').style.display = 'none';
         document.getElementById('cal-step-slots').style.display = 'block';
@@ -1923,7 +1910,7 @@
     }
 
     function updateModeBadge() {
-      const badge = document.getElementById('mode-badge');
+      const badge = document.getElementById('mode-badge2');
       const modeEl = document.getElementById('chat-mode');
       if (chatMode === 'ai') {
         badge.textContent = 'AI Powered'; modeEl.textContent = 'AI'; modeEl.style.color = '#6C5CE7';
