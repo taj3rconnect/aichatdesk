@@ -1,7 +1,13 @@
 node_modules/
 .env
+*.env
+!.env.example
 *.log
 .DS_Store
 dist/
 coverage/
-bakenv.env
+uploads/
+*.tmp
+*.swp
+.idea/
+.vscode/
