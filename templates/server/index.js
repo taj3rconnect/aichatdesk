@@ -57,6 +57,7 @@ app.use('/api/dashboard', require('./routes/dashboard')); // Phase 6 - Operator 
 app.use('/api/analytics', require('./routes/analytics')); // Phase 6 - Analytics
 app.use('/api/canned-responses', require('./routes/canned-responses')); // Phase 6 - Canned responses
 app.use('/api/categories', require('./routes/categories')); // Workflow categories
+app.use('/api/calendar', require('./routes/calendar')); // Office 365 calendar scheduling
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -77,7 +78,26 @@ initTeamsBot(app);
 // Start server
 const PORT = process.env.AICHATDESK_PORT || 8001;
 
-connectDB().then(() => {
+// Auto-migrate agents: add systemRole from legacy role field
+async function migrateAgents() {
+  try {
+    const { Agent } = require('./db/models');
+    const agents = await Agent.find({ systemRole: { $exists: false } });
+    if (agents.length === 0) return;
+    const roleMap = { admin: 'admin', supervisor: 'manager', agent: 'agent' };
+    for (const a of agents) {
+      a.systemRole = roleMap[a.role] || 'agent';
+      if (!a.roles) a.roles = [];
+      await a.save();
+    }
+    console.log(`[Migration] Updated ${agents.length} agents with systemRole`);
+  } catch (err) {
+    console.error('[Migration] Agent migration error:', err.message);
+  }
+}
+
+connectDB().then(async () => {
+  await migrateAgents();
   server.listen(PORT, () => {
     console.log(`AIChatDesk server running on port ${PORT}`);
     console.log(`WebSocket ready at ws://localhost:${PORT}`);

@@ -149,6 +149,52 @@
     .split-panel:last-child { border-right: none; }
     /* Categories page */
     #categories-page { display: none; height: calc(100vh - 82px); padding: 30px; overflow-y: auto; }
+    /* Users page */
+    #users-page { display: none; height: calc(100vh - 82px); padding: 30px; overflow-y: auto; }
+    .sub-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .sub-tab-btn { padding: 6px 16px; border-radius: 20px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: #2a2a4a; color: #888; transition: all 0.2s; }
+    .sub-tab-btn:hover { background: #3a3a5a; color: #e0e0e0; }
+    .sub-tab-btn.active { background: #6C5CE7; color: white; }
+    .sub-tab-content { display: none; }
+    .sub-tab-content.active { display: block; }
+    .users-toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+    .users-toolbar .kb-btn { padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .users-toolbar .kb-btn-primary { background: #6C5CE7; color: white; }
+    .users-toolbar .kb-btn-primary:hover { background: #5a4bd1; }
+    .role-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .role-badge.admin { background: #6C5CE733; color: #6C5CE7; }
+    .role-badge.manager { background: #3498db33; color: #3498db; }
+    .role-badge.agent { background: #95a5a633; color: #95a5a6; }
+    .team-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; background: #2a2a4a; color: #aaa; margin-right: 4px; margin-bottom: 2px; }
+    .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .status-indicator.online { background: #00b894; }
+    .status-indicator.offline { background: #ccc; }
+    .status-indicator.away { background: #f39c12; }
+    .action-btn { background: none; border: 1px solid #3a3a5a; color: #888; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px; transition: all 0.2s; }
+    .action-btn:hover { border-color: #6C5CE7; color: #6C5CE7; }
+    .action-btn.danger:hover { border-color: #e74c3c; color: #e74c3c; }
+    .copy-btn { background: none; border: 1px solid #3a3a5a; color: #888; cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
+    .copy-btn:hover { border-color: #00b894; color: #00b894; }
+    /* Generic modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: #16213e; border-radius: 12px; width: 500px; max-height: 80vh; overflow-y: auto; padding: 24px; }
+    .modal-box h3 { color: #e0e0e0; margin-bottom: 20px; font-size: 18px; }
+    .modal-field { margin-bottom: 14px; }
+    .modal-field label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+    .modal-field input, .modal-field select, .modal-field textarea { width: 100%; padding: 10px 12px; background: #2a2a4a; border: 1px solid #3a3a5a; color: #e0e0e0; border-radius: 6px; font-size: 13px; }
+    .modal-field input:focus, .modal-field select:focus { outline: none; border-color: #6C5CE7; }
+    .modal-field select { appearance: auto; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .modal-actions button { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .modal-actions .btn-primary { background: #6C5CE7; color: white; }
+    .modal-actions .btn-primary:hover { background: #5a4bd1; }
+    .modal-actions .btn-secondary { background: #3a3a5a; color: #e0e0e0; }
+    .modal-actions .btn-secondary:hover { background: #4a4a6a; }
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; background: #2a2a4a; border-radius: 6px; border: 1px solid #3a3a5a; min-height: 40px; }
+    .checkbox-group label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #ccc; cursor: pointer; padding: 2px 6px; background: #16213e; border-radius: 4px; }
+    .checkbox-group input[type="checkbox"] { width: auto; margin: 0; }
+    .invite-url { font-family: 'Courier New', monospace; font-size: 11px; color: #6C5CE7; background: #2a2a4a; padding: 4px 8px; border-radius: 4px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -182,6 +228,7 @@
       <button class="tab-btn active" id="tab-chats" onclick="switchTab('chats')">Chats</button>
       <button class="tab-btn" id="tab-kb" onclick="switchTab('kb')">Knowledge Base</button>
       <button class="tab-btn" id="tab-categories" onclick="switchTab('categories')">Categories</button>
+      <button class="tab-btn" id="tab-users" onclick="switchTab('users')" style="display:none;">Users</button>
     </span>
   </div>
 
@@ -299,8 +346,8 @@
         <input type="text" id="cat-name" placeholder="e.g. PreSales" style="display:block; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:13px; width:150px;">
       </div>
       <div>
-        <label style="font-size:11px; color:#888;">Icon</label>
-        <input type="text" id="cat-icon" value="&#x1F4AC;" style="display:block; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:13px; width:60px;">
+        <label style="font-size:11px; color:#888;">Icon <span style="color:#6C5CE7;">(AI auto)</span></label>
+        <input type="text" id="cat-icon" value="" placeholder="auto" style="display:block; background:#2a2a4a; border:1px solid #3a3a5a; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:13px; width:60px;" title="Leave blank for AI to pick the best icon">
       </div>
       <div style="flex:1; min-width:200px;">
         <label style="font-size:11px; color:#888;">AI Prompt</label>
@@ -333,6 +380,174 @@
       <div class="kb-modal-footer">
         <button class="btn-cancel" onclick="closeKBModal()">Cancel</button>
         <button class="btn-save" id="kb-modal-save" onclick="saveKBContent()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users Management Page -->
+  <div id="users-page">
+    <h2 style="color: #6C5CE7; margin-bottom: 20px;">User Management</h2>
+    <div class="sub-tabs">
+      <button class="sub-tab-btn active" onclick="switchUsersSubTab('all-users')">All Users</button>
+      <button class="sub-tab-btn" onclick="switchUsersSubTab('roles-teams')">Roles/Teams</button>
+      <button class="sub-tab-btn" onclick="switchUsersSubTab('invite-links')">Invite Links</button>
+    </div>
+
+    <!-- Sub-tab: All Users -->
+    <div id="subtab-all-users" class="sub-tab-content active">
+      <div class="users-toolbar">
+        <button class="kb-btn kb-btn-primary" onclick="showUserModal()">+ Add User</button>
+      </div>
+      <table class="kb-table">
+        <thead><tr><th>Name</th><th>Email</th><th>System Role</th><th>Teams/Roles</th><th>Manager</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="users-list"></tbody>
+      </table>
+    </div>
+
+    <!-- Sub-tab: Roles/Teams -->
+    <div id="subtab-roles-teams" class="sub-tab-content">
+      <div class="users-toolbar">
+        <button class="kb-btn kb-btn-primary" onclick="showRoleModal()">+ Create Role</button>
+      </div>
+      <table class="kb-table">
+        <thead><tr><th>Icon</th><th>Role Name</th><th>Description</th><th>Manager</th><th># Agents</th><th>Actions</th></tr></thead>
+        <tbody id="roles-list"></tbody>
+      </table>
+    </div>
+
+    <!-- Sub-tab: Invite Links -->
+    <div id="subtab-invite-links" class="sub-tab-content">
+      <div class="users-toolbar">
+        <button class="kb-btn kb-btn-primary" onclick="showInviteLinkModal()">+ Create Invite Link</button>
+      </div>
+      <table class="kb-table">
+        <thead><tr><th>Label</th><th>URL</th><th>Roles</th><th>Used/Max</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody id="invite-links-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add/Edit User Modal -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal-box">
+      <h3 id="user-modal-title">Add User</h3>
+      <input type="hidden" id="user-modal-id">
+      <div class="modal-field">
+        <label>Name</label>
+        <input type="text" id="user-modal-name" placeholder="Full name">
+      </div>
+      <div class="modal-field">
+        <label>Email</label>
+        <input type="email" id="user-modal-email" placeholder="email@example.com">
+      </div>
+      <div class="modal-field" id="user-modal-password-field">
+        <label>Password</label>
+        <input type="text" id="user-modal-password" placeholder="Min 8 characters">
+      </div>
+      <div class="modal-field" id="user-modal-sysrole-field">
+        <label>System Role</label>
+        <select id="user-modal-sysrole">
+          <option value="agent">Agent</option>
+          <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Roles/Teams</label>
+        <div class="checkbox-group" id="user-modal-roles"></div>
+      </div>
+      <div class="modal-field">
+        <label>Manager</label>
+        <select id="user-modal-manager">
+          <option value="">None</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('user-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveUser()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Role Modal -->
+  <div class="modal-overlay" id="role-modal">
+    <div class="modal-box">
+      <h3 id="role-modal-title">Create Role</h3>
+      <input type="hidden" id="role-modal-id">
+      <div class="modal-field">
+        <label>Name</label>
+        <input type="text" id="role-modal-name" placeholder="Role name">
+      </div>
+      <div class="modal-field">
+        <label>Description</label>
+        <input type="text" id="role-modal-desc" placeholder="What this role does...">
+      </div>
+      <div class="modal-field">
+        <label>Icon <span style="color:#6C5CE7;">(AI auto)</span></label>
+        <input type="text" id="role-modal-icon" placeholder="auto">
+      </div>
+      <div class="modal-field">
+        <label>Manager</label>
+        <select id="role-modal-manager">
+          <option value="">None</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('role-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveRole()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Invite Link Modal -->
+  <div class="modal-overlay" id="invite-modal">
+    <div class="modal-box">
+      <h3>Create Invite Link</h3>
+      <div class="modal-field">
+        <label>Label</label>
+        <input type="text" id="invite-modal-label" placeholder="e.g. Q1 Hiring Batch">
+      </div>
+      <div class="modal-field">
+        <label>Roles</label>
+        <div class="checkbox-group" id="invite-modal-roles"></div>
+      </div>
+      <div class="modal-field">
+        <label>Default Manager</label>
+        <select id="invite-modal-manager">
+          <option value="">None</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Max Uses (0 = unlimited)</label>
+        <input type="number" id="invite-modal-max" value="0" min="0">
+      </div>
+      <div class="modal-field">
+        <label>Expiry Date (optional)</label>
+        <input type="date" id="invite-modal-expiry">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('invite-modal')">Cancel</button>
+        <button class="btn-primary" onclick="createInviteLink()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Password Modal -->
+  <div class="modal-overlay" id="reset-pw-modal">
+    <div class="modal-box">
+      <h3>Reset Password</h3>
+      <input type="hidden" id="reset-pw-agent-id">
+      <div class="modal-field">
+        <label>Agent</label>
+        <input type="text" id="reset-pw-agent-name" readonly style="opacity: 0.7;">
+      </div>
+      <div class="modal-field">
+        <label>New Password</label>
+        <input type="text" id="reset-pw-value" placeholder="Min 8 characters">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('reset-pw-modal')">Cancel</button>
+        <button class="btn-primary" onclick="resetAgentPassword()">Reset Password</button>
       </div>
     </div>
   </div>
@@ -386,7 +601,12 @@
           document.getElementById('agent-dot').classList.add('online');
           document.getElementById('server-status').textContent = 'Connected';
           document.getElementById('server-status').classList.add('connected');
-          log(`Logged in as ${agentName} (${data.agent?.role})`);
+          currentAgentSystemRole = data.agent?.systemRole || data.agent?.role || 'agent';
+          log(`Logged in as ${agentName} (${currentAgentSystemRole})`);
+          // Show Users tab for admin and manager
+          if (currentAgentSystemRole === 'admin' || currentAgentSystemRole === 'manager') {
+            document.getElementById('tab-users').style.display = '';
+          }
           loadChats();
           loadKBFiles();
           connectWS();
@@ -435,6 +655,7 @@
         return `
           <div class="chat-item ${isSelected ? 'active' : ''} ${isInSplit && !isSelected ? 'in-split' : ''}" onclick="selectChat('${chat.sessionId}')" style="${isInSplit && !isSelected ? 'border-left: 3px solid #00b894;' : ''}">
             <div class="name">${tktIcon ? tktIcon + ' ' : ''}${chat.userName || 'Anonymous'}</div>
+            <div class="preview" style="color:#6C5CE7; font-size:11px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis;" title="${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}">${chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''}</div>
             <div class="preview">${chat.summary || chat.category || 'New conversation'}</div>
             <div class="meta">
               <span class="priority-badge ${priority}">${priority}</span>
@@ -464,7 +685,8 @@
           chatId: chat._id,
           mode: chat.mode,
           userName: chat.userName,
-          userEmail: chat.userEmail
+          userEmail: chat.userEmail,
+          userUrl: chat.metadata?.environment?.currentUrl || chat.metadata?.currentPage || ''
         });
       }
 
@@ -571,7 +793,7 @@
         const isSelected = selectedChat && selectedChat.sessionId === ac.sessionId;
         panel.innerHTML = `
           <div style="padding:8px 12px; background:${isSelected ? '#1a2a4e' : '#16213e'}; border-bottom:1px solid #2a2a4a; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-            <span style="font-weight:600; font-size:13px; cursor:pointer;" onclick="focusPanel('${ac.sessionId}')">${escapeHtml(ac.userName || 'Anonymous')}</span>
+            <span style="font-weight:600; font-size:13px; cursor:pointer;" onclick="focusPanel('${ac.sessionId}')">${escapeHtml(ac.userName || 'Anonymous')}${ac.userUrl ? ' &mdash; <span style="font-weight:400; font-size:11px; color:#888; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle;" title="' + escapeHtml(ac.userUrl) + '">' + escapeHtml(ac.userUrl) + '</span>' : ''}</span>
             <div style="display:flex; gap:4px; align-items:center;">
               <span class="mode-tag ${ac.mode || 'ai'}" style="font-size:10px;">${(ac.mode || 'ai').toUpperCase()}</span>
               <button class="btn btn-takeover" style="font-size:10px; padding:3px 8px; ${isHuman ? 'display:none' : ''}" onclick="takeoverPanel(${idx})">Take Over</button>
@@ -1065,11 +1287,14 @@
       document.getElementById('tab-chats').classList.toggle('active', tab === 'chats');
       document.getElementById('tab-kb').classList.toggle('active', tab === 'kb');
       document.getElementById('tab-categories').classList.toggle('active', tab === 'categories');
+      document.getElementById('tab-users').classList.toggle('active', tab === 'users');
       document.querySelector('.main').style.display = tab === 'chats' ? 'grid' : 'none';
       document.getElementById('kb-page').classList.toggle('active', tab === 'kb');
       document.getElementById('categories-page').style.display = tab === 'categories' ? 'block' : 'none';
+      document.getElementById('users-page').style.display = tab === 'users' ? 'block' : 'none';
       if (tab === 'kb') kbPageRefresh();
       if (tab === 'categories') loadCategories();
+      if (tab === 'users') loadUsers();
     }
 
     // --- KB Page functions ---
@@ -1217,7 +1442,7 @@
 
     async function addCategory() {
       const name = document.getElementById('cat-name').value.trim();
-      const icon = document.getElementById('cat-icon').value.trim() || '\u{1F4AC}';
+      const icon = document.getElementById('cat-icon').value.trim(); // empty = AI auto-pick
       const prompt = document.getElementById('cat-prompt').value.trim();
       const active = document.getElementById('cat-active').checked;
       if (!name || !prompt) { alert('Name and prompt are required'); return; }
@@ -1252,6 +1477,391 @@
         });
         loadCategories();
       } catch (err) { log('Delete category error: ' + err.message); }
+    }
+
+    // --- Users Management ---
+    let allAgents = [];
+    let allRoles = [];
+    let currentAgentSystemRole = 'agent'; // set after login
+
+    function switchUsersSubTab(tab) {
+      document.querySelectorAll('#users-page .sub-tab-btn').forEach((btn, i) => {
+        const tabs = ['all-users', 'roles-teams', 'invite-links'];
+        btn.classList.toggle('active', tabs[i] === tab);
+      });
+      document.querySelectorAll('#users-page .sub-tab-content').forEach(el => el.classList.remove('active'));
+      document.getElementById('subtab-' + tab).classList.add('active');
+      if (tab === 'all-users') loadUsers();
+      if (tab === 'roles-teams') loadRolesTab();
+      if (tab === 'invite-links') loadInviteLinks();
+    }
+
+    async function loadUsers() {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API}/api/agents`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        allAgents = Array.isArray(data) ? data : (data.agents || []);
+        renderUsersTable();
+      } catch (err) { log('Load users error: ' + err.message); }
+    }
+
+    function renderUsersTable() {
+      const el = document.getElementById('users-list');
+      if (!allAgents.length) {
+        el.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#666; padding:30px;">No users found.</td></tr>';
+        return;
+      }
+      el.innerHTML = allAgents.map(a => {
+        const sysRole = a.systemRole || a.role || 'agent';
+        const roleBadgeClass = sysRole === 'admin' ? 'admin' : sysRole === 'manager' ? 'manager' : 'agent';
+        const roles = (a.roles || []).map(r => {
+          const roleName = typeof r === 'string' ? r : (r.name || r);
+          return `<span class="team-tag">${escapeHtml(String(roleName))}</span>`;
+        }).join('');
+        const managerName = a.managerName || (a.managerId ? 'ID: ' + a.managerId.substring(0, 8) : '-');
+        const statusClass = a.status === 'online' ? 'online' : a.status === 'away' ? 'away' : 'offline';
+        const statusLabel = a.status || 'offline';
+        const deleteBtn = currentAgentSystemRole === 'admin'
+          ? `<button class="action-btn danger" onclick="deleteUser('${a._id || a.id}')" title="Delete">&#x1F5D1;</button>`
+          : '';
+        return `<tr>
+          <td>${escapeHtml(a.name || '')}</td>
+          <td>${escapeHtml(a.email || '')}</td>
+          <td><span class="role-badge ${roleBadgeClass}">${sysRole}</span></td>
+          <td>${roles || '-'}</td>
+          <td>${escapeHtml(managerName)}</td>
+          <td><span class="status-indicator ${statusClass}"></span>${statusLabel}</td>
+          <td>
+            <button class="action-btn" onclick="showUserModal(${JSON.stringify(a).replace(/"/g, '&quot;')})" title="Edit">&#x270F;</button>
+            ${deleteBtn}
+            <button class="action-btn" onclick="showResetPasswordModal('${a._id || a.id}', '${escapeHtml(a.name || '')}')" title="Reset Password">&#x1F511;</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadRolesTab() {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API}/api/agents/roles`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        allRoles = Array.isArray(data) ? data : (data.roles || []);
+        renderRolesTable();
+      } catch (err) { log('Load roles error: ' + err.message); }
+    }
+
+    function renderRolesTable() {
+      const el = document.getElementById('roles-list');
+      if (!allRoles.length) {
+        el.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No roles yet. Create one above.</td></tr>';
+        return;
+      }
+      el.innerHTML = allRoles.map(r => {
+        const managerName = r.managerName || (r.managerId ? 'ID: ' + String(r.managerId).substring(0, 8) : '-');
+        return `<tr>
+          <td>${r.icon || ''}</td>
+          <td>${escapeHtml(r.name || '')}</td>
+          <td style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(r.description || '')}">${escapeHtml(r.description || '')}</td>
+          <td>${escapeHtml(managerName)}</td>
+          <td>${r.agentCount != null ? r.agentCount : '-'}</td>
+          <td><div class="actions-cell">
+            <button class="btn-view" onclick='showRoleModal(${JSON.stringify(r).replace(/'/g, "&#39;")})'>Edit</button>
+            <button class="btn-del" onclick="deleteRole('${r._id || r.id}')">Delete</button>
+          </div></td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadInviteLinks() {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API}/api/agents/invite-links`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        const links = Array.isArray(data) ? data : (data.links || []);
+        renderInviteLinksTable(links);
+      } catch (err) { log('Load invite links error: ' + err.message); }
+    }
+
+    function renderInviteLinksTable(links) {
+      const el = document.getElementById('invite-links-list');
+      if (!links.length) {
+        el.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666; padding:30px;">No invite links. Create one above.</td></tr>';
+        return;
+      }
+      el.innerHTML = links.map(l => {
+        const url = `${window.location.origin}/test/signup.html?code=${l.code}`;
+        const roles = (l.roles || []).map(r => `<span class="team-tag">${escapeHtml(typeof r === 'string' ? r : (r.name || r))}</span>`).join('') || '-';
+        const maxLabel = l.maxUses === 0 || !l.maxUses ? 'unlimited' : l.maxUses;
+        const created = l.createdAt ? new Date(l.createdAt).toLocaleDateString() : '-';
+        const isActive = l.active !== false;
+        return `<tr style="${isActive ? '' : 'opacity:0.5;'}">
+          <td>${escapeHtml(l.label || l.name || '-')}</td>
+          <td><span class="invite-url" title="${escapeHtml(url)}">${escapeHtml(url)}</span><button class="copy-btn" onclick="copyToClipboard('${escapeHtml(url)}')">Copy</button></td>
+          <td>${roles}</td>
+          <td>${l.usedCount || 0} / ${maxLabel}</td>
+          <td>${created}</td>
+          <td>${isActive ? `<button class="btn-del" onclick="deleteInviteLink('${l._id || l.id}')">Deactivate</button>` : '<span style="color:#666;">Inactive</span>'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        log('Copied invite link to clipboard');
+      }).catch(() => {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        log('Copied invite link to clipboard');
+      });
+    }
+
+    // --- Modal helpers ---
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    async function populateRoleCheckboxes(containerId, selectedRoles) {
+      // Load roles if not loaded
+      if (!allRoles.length) {
+        try {
+          const res = await fetch(`${API}/api/agents/roles`, { headers: { 'Authorization': 'Bearer ' + token } });
+          const data = await res.json();
+          allRoles = Array.isArray(data) ? data : (data.roles || []);
+        } catch (err) { /* ignore */ }
+      }
+      const container = document.getElementById(containerId);
+      if (!allRoles.length) {
+        container.innerHTML = '<span style="color:#666; font-size:12px;">No roles available</span>';
+        return;
+      }
+      const selected = (selectedRoles || []).map(r => typeof r === 'string' ? r : (r._id || r.id || r.name || r));
+      container.innerHTML = allRoles.map(r => {
+        const rid = r._id || r.id;
+        const checked = selected.includes(rid) || selected.includes(r.name) ? 'checked' : '';
+        return `<label><input type="checkbox" value="${rid}" ${checked}> ${escapeHtml(r.name || '')}</label>`;
+      }).join('');
+    }
+
+    async function populateManagerDropdown(selectId, selectedManagerId) {
+      // Load agents if needed
+      if (!allAgents.length) {
+        try {
+          const res = await fetch(`${API}/api/agents`, { headers: { 'Authorization': 'Bearer ' + token } });
+          const data = await res.json();
+          allAgents = Array.isArray(data) ? data : (data.agents || []);
+        } catch (err) { /* ignore */ }
+      }
+      const select = document.getElementById(selectId);
+      const managers = allAgents.filter(a => {
+        const role = a.systemRole || a.role || 'agent';
+        return role === 'admin' || role === 'manager';
+      });
+      select.innerHTML = '<option value="">None</option>' + managers.map(m => {
+        const mid = m._id || m.id;
+        const sel = mid === selectedManagerId ? 'selected' : '';
+        return `<option value="${mid}" ${sel}>${escapeHtml(m.name || m.email)}</option>`;
+      }).join('');
+    }
+
+    // --- User Modal ---
+    async function showUserModal(agent) {
+      const isEdit = !!agent;
+      document.getElementById('user-modal-title').textContent = isEdit ? 'Edit User' : 'Add User';
+      document.getElementById('user-modal-id').value = isEdit ? (agent._id || agent.id || '') : '';
+      document.getElementById('user-modal-name').value = isEdit ? (agent.name || '') : '';
+      document.getElementById('user-modal-email').value = isEdit ? (agent.email || '') : '';
+      document.getElementById('user-modal-password').value = '';
+      document.getElementById('user-modal-password-field').style.display = isEdit ? 'none' : 'block';
+      // System role dropdown: only admin can see it
+      if (currentAgentSystemRole === 'admin') {
+        document.getElementById('user-modal-sysrole-field').style.display = 'block';
+        document.getElementById('user-modal-sysrole').value = isEdit ? (agent.systemRole || agent.role || 'agent') : 'agent';
+      } else {
+        document.getElementById('user-modal-sysrole-field').style.display = 'none';
+      }
+      const agentRoles = isEdit ? (agent.roles || []) : [];
+      await populateRoleCheckboxes('user-modal-roles', agentRoles);
+      await populateManagerDropdown('user-modal-manager', isEdit ? agent.managerId : '');
+      document.getElementById('user-modal').classList.add('open');
+    }
+
+    async function saveUser() {
+      const id = document.getElementById('user-modal-id').value;
+      const name = document.getElementById('user-modal-name').value.trim();
+      const email = document.getElementById('user-modal-email').value.trim();
+      const password = document.getElementById('user-modal-password').value;
+      const systemRole = currentAgentSystemRole === 'admin' ? document.getElementById('user-modal-sysrole').value : 'agent';
+      const roles = Array.from(document.querySelectorAll('#user-modal-roles input:checked')).map(cb => cb.value);
+      const managerId = document.getElementById('user-modal-manager').value || null;
+
+      if (!name || !email) { alert('Name and email are required'); return; }
+      if (!id && (!password || password.length < 8)) { alert('Password must be at least 8 characters'); return; }
+
+      const body = { name, email, systemRole, roles, managerId };
+      if (!id) body.password = password;
+
+      try {
+        const url = id ? `${API}/api/agents/${id}` : `${API}/api/agents`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        closeModal('user-modal');
+        log(id ? 'User updated' : 'User created');
+        loadUsers();
+      } catch (err) { alert('Save failed: ' + err.message); }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Deactivate this user? They will no longer be able to log in.')) return;
+      try {
+        const res = await fetch(`${API}/api/agents/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        log('User deactivated');
+        loadUsers();
+      } catch (err) { alert('Delete failed: ' + err.message); }
+    }
+
+    // --- Role Modal ---
+    async function showRoleModal(role) {
+      const isEdit = !!role;
+      document.getElementById('role-modal-title').textContent = isEdit ? 'Edit Role' : 'Create Role';
+      document.getElementById('role-modal-id').value = isEdit ? (role._id || role.id || '') : '';
+      document.getElementById('role-modal-name').value = isEdit ? (role.name || '') : '';
+      document.getElementById('role-modal-desc').value = isEdit ? (role.description || '') : '';
+      document.getElementById('role-modal-icon').value = isEdit ? (role.icon || '') : '';
+      await populateManagerDropdown('role-modal-manager', isEdit ? role.managerId : '');
+      document.getElementById('role-modal').classList.add('open');
+    }
+
+    async function saveRole() {
+      const id = document.getElementById('role-modal-id').value;
+      const name = document.getElementById('role-modal-name').value.trim();
+      const description = document.getElementById('role-modal-desc').value.trim();
+      const icon = document.getElementById('role-modal-icon').value.trim();
+      const managerId = document.getElementById('role-modal-manager').value || null;
+
+      if (!name) { alert('Name is required'); return; }
+
+      const body = { name, description, icon, managerId };
+      try {
+        const url = id ? `${API}/api/agents/roles/${id}` : `${API}/api/agents/roles`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        closeModal('role-modal');
+        log(id ? 'Role updated' : 'Role created');
+        loadRolesTab();
+      } catch (err) { alert('Save failed: ' + err.message); }
+    }
+
+    async function deleteRole(id) {
+      if (!confirm('Delete this role? Agents with this role will be unassigned.')) return;
+      try {
+        const res = await fetch(`${API}/api/agents/roles/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        log('Role deleted');
+        loadRolesTab();
+      } catch (err) { alert('Delete failed: ' + err.message); }
+    }
+
+    // --- Invite Link Modal ---
+    async function showInviteLinkModal() {
+      document.getElementById('invite-modal-label').value = '';
+      document.getElementById('invite-modal-max').value = '0';
+      document.getElementById('invite-modal-expiry').value = '';
+      await populateRoleCheckboxes('invite-modal-roles', []);
+      await populateManagerDropdown('invite-modal-manager', '');
+      document.getElementById('invite-modal').classList.add('open');
+    }
+
+    async function createInviteLink() {
+      const label = document.getElementById('invite-modal-label').value.trim();
+      const roles = Array.from(document.querySelectorAll('#invite-modal-roles input:checked')).map(cb => cb.value);
+      const defaultManagerId = document.getElementById('invite-modal-manager').value || null;
+      const maxUses = parseInt(document.getElementById('invite-modal-max').value) || 0;
+      const expiresAt = document.getElementById('invite-modal-expiry').value || null;
+
+      if (!label) { alert('Label is required'); return; }
+
+      try {
+        const res = await fetch(`${API}/api/agents/invite-links`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, roles, defaultManagerId, maxUses, expiresAt })
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        closeModal('invite-modal');
+        log('Invite link created');
+        loadInviteLinks();
+      } catch (err) { alert('Create failed: ' + err.message); }
+    }
+
+    async function deleteInviteLink(id) {
+      if (!confirm('Deactivate this invite link?')) return;
+      try {
+        const res = await fetch(`${API}/api/agents/invite-links/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        log('Invite link deactivated');
+        loadInviteLinks();
+      } catch (err) { alert('Deactivate failed: ' + err.message); }
+    }
+
+    // --- Reset Password Modal ---
+    function showResetPasswordModal(agentId, agentName) {
+      document.getElementById('reset-pw-agent-id').value = agentId;
+      document.getElementById('reset-pw-agent-name').value = agentName;
+      document.getElementById('reset-pw-value').value = '';
+      document.getElementById('reset-pw-modal').classList.add('open');
+    }
+
+    async function resetAgentPassword() {
+      const agentId = document.getElementById('reset-pw-agent-id').value;
+      const newPassword = document.getElementById('reset-pw-value').value;
+      if (!newPassword || newPassword.length < 8) { alert('Password must be at least 8 characters'); return; }
+      try {
+        const res = await fetch(`${API}/api/agents/${agentId}/reset-password`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newPassword })
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        closeModal('reset-pw-modal');
+        log('Password reset successfully');
+      } catch (err) { alert('Reset failed: ' + err.message); }
     }
 
     // Poll for new chats

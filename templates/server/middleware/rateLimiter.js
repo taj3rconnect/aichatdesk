@@ -15,7 +15,7 @@ const limiter = rateLimit({
     return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
   },
   // Skip rate limiting for health checks
-  skip: (req) => req.path === '/health'
+  skip: (req) => req.path === '/health' || req.path.startsWith('/test/')
 });
 
 // Stricter rate limiter for chat endpoints (to prevent spam)

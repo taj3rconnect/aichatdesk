@@ -1,35 +1,28 @@
 const jwt = require('jsonwebtoken');
+const { Role } = require('../db/models');
 
 /**
  * Middleware to authenticate agent JWT tokens
- * Extracts token from Authorization header, verifies it, and attaches decoded agent to req.agent
  */
 function authenticateAgent(req, res, next) {
   try {
-    // Check if JWT_SECRET is configured
     if (!process.env.JWT_SECRET) {
       return res.status(503).json({ error: 'Server configuration error' });
     }
 
-    // Extract token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Access token required' });
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const token = authHeader.substring(7);
     if (!token) {
       return res.status(401).json({ error: 'Access token required' });
     }
 
-    // Verify token
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Attach decoded payload to request
-      // Payload contains: { agentId, email, role }
       req.agent = decoded;
-
       next();
     } catch (err) {
       if (err.name === 'JsonWebTokenError') {
@@ -37,7 +30,7 @@ function authenticateAgent(req, res, next) {
       } else if (err.name === 'TokenExpiredError') {
         return res.status(401).json({ error: 'Token expired' });
       } else {
-        throw err; // Re-throw to outer catch
+        throw err;
       }
     }
   } catch (err) {
@@ -47,19 +40,17 @@ function authenticateAgent(req, res, next) {
 }
 
 /**
- * Middleware factory to check if agent has required role
- * Usage: requireRole('admin', 'supervisor')
- * Must be used AFTER authenticateAgent middleware
+ * Middleware factory to check if agent has required system role
+ * Uses systemRole field, falls back to role for backward compat
  */
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
-    // Check if agent is authenticated (should be set by authenticateAgent)
-    if (!req.agent || !req.agent.role) {
+    if (!req.agent) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Check if agent's role is in allowed roles
-    if (!allowedRoles.includes(req.agent.role)) {
+    const agentRole = req.agent.systemRole || req.agent.role;
+    if (!agentRole || !allowedRoles.includes(agentRole)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
@@ -67,4 +58,17 @@ function requireRole(...allowedRoles) {
   };
 }
 
-module.exports = { authenticateAgent, requireRole };
+/**
+ * Check if requesting agent manages any of the target agent's teams
+ */
+async function canManageAgent(requestingAgentId, targetAgent) {
+  const requestingRole = targetAgent.systemRole || targetAgent.role;
+  // Find roles where requesting agent is manager
+  const managedRoles = await Role.find({ managerId: requestingAgentId, active: true });
+  const managedRoleNames = managedRoles.map(r => r.name);
+  // Check if target agent has any role managed by requesting agent
+  const targetRoles = targetAgent.roles || [];
+  return targetRoles.some(r => managedRoleNames.includes(r));
+}
+
+module.exports = { authenticateAgent, requireRole, canManageAgent };

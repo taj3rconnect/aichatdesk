@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIChatDesk - Sign Up</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      padding: 20px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .logo h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6C5CE7, #a29bfe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .logo p {
+      color: #999;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .card .subtitle {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .roles-badge-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .role-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #6C5CE7, #a29bfe);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 20px;
+      text-transform: capitalize;
+    }
+    .roles-label {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus {
+      border-color: #6C5CE7;
+      box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+    }
+    .form-group input.error {
+      border-color: #e74c3c;
+    }
+    .field-error {
+      color: #e74c3c;
+      font-size: 12px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      background: #6C5CE7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 6px;
+    }
+    .btn:hover { background: #5b4bd5; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled {
+      background: #b8b0f0;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* State screens */
+    .state-screen {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .state-screen .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .state-screen h2 {
+      margin-bottom: 12px;
+    }
+    .state-screen p {
+      color: #666;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .error-text {
+      color: #e74c3c;
+    }
+    .success-text {
+      color: #27ae60;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .alert-error {
+      background: #ffeaea;
+      color: #c0392b;
+      border: 1px solid #f5c6cb;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      color: #bbb;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="logo">
+      <h1>AIChatDesk</h1>
+      <p>Agent Signup</p>
+    </div>
+
+    <!-- Loading state -->
+    <div class="card" id="loading-state">
+      <div class="state-screen">
+        <div class="spinner" style="width:32px;height:32px;border-width:3px;border-color:rgba(108,92,231,0.2);border-top-color:#6C5CE7;"></div>
+        <p style="margin-top:16px;color:#999;">Validating invite link...</p>
+      </div>
+    </div>
+
+    <!-- Invalid code state -->
+    <div class="card" id="error-state" style="display:none;">
+      <div class="state-screen">
+        <div class="icon">&#10007;</div>
+        <h2 class="error-text">Invalid Invite Link</h2>
+        <p id="error-message">This invite link is invalid or has expired. Please contact your administrator for a new link.</p>
+      </div>
+    </div>
+
+    <!-- Signup form -->
+    <div class="card" id="form-state" style="display:none;">
+      <h2>Create Your Account</h2>
+      <p class="subtitle">You've been invited to join the team.</p>
+
+      <div class="roles-label">Assigned roles:</div>
+      <div class="roles-badge-container" id="roles-container"></div>
+
+      <div class="alert alert-error" id="submit-error"></div>
+
+      <form id="signup-form" novalidate>
+        <div class="form-group">
+          <label for="name">Full Name</label>
+          <input type="text" id="name" placeholder="Enter your name" autocomplete="name" required>
+          <div class="field-error" id="name-error">Name is required</div>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email" required>
+          <div class="field-error" id="email-error">Please enter a valid email address</div>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Minimum 8 characters" autocomplete="new-password" required>
+          <div class="field-error" id="password-error">Password must be at least 8 characters</div>
+        </div>
+
+        <div class="form-group">
+          <label for="confirm-password">Confirm Password</label>
+          <input type="password" id="confirm-password" placeholder="Re-enter your password" autocomplete="new-password" required>
+          <div class="field-error" id="confirm-error">Passwords do not match</div>
+        </div>
+
+        <button type="submit" class="btn" id="submit-btn">Create Account</button>
+      </form>
+    </div>
+
+    <!-- Success state -->
+    <div class="card" id="success-state" style="display:none;">
+      <div class="state-screen">
+        <div class="icon" style="color:#27ae60;">&#10003;</div>
+        <h2 class="success-text">Account Created!</h2>
+        <p>Your account has been set up successfully. You can now log in at the dashboard.</p>
+      </div>
+    </div>
+
+    <footer>AIChatDesk</footer>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    const loadingEl = document.getElementById('loading-state');
+    const errorEl = document.getElementById('error-state');
+    const formEl = document.getElementById('form-state');
+    const successEl = document.getElementById('success-state');
+    const errorMsgEl = document.getElementById('error-message');
+    const rolesContainer = document.getElementById('roles-container');
+    const submitError = document.getElementById('submit-error');
+    const submitBtn = document.getElementById('submit-btn');
+
+    function showState(state) {
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'none';
+      formEl.style.display = 'none';
+      successEl.style.display = 'none';
+      state.style.display = 'block';
+    }
+
+    function clearFieldErrors() {
+      document.querySelectorAll('.field-error').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('input.error').forEach(el => el.classList.remove('error'));
+    }
+
+    function showFieldError(inputId, errorId) {
+      document.getElementById(inputId).classList.add('error');
+      document.getElementById(errorId).style.display = 'block';
+    }
+
+    function validateEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    // Validate invite code on page load
+    async function validateCode() {
+      if (!code) {
+        errorMsgEl.textContent = 'No invite code provided. Please use the invite link you were given.';
+        showState(errorEl);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/api/agents/signup/${encodeURIComponent(code)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorMsgEl.textContent = data.detail || data.message || 'This invite link is invalid or has expired.';
+          showState(errorEl);
+          return;
+        }
+
+        // Populate roles
+        const roles = data.roles || [];
+        rolesContainer.innerHTML = '';
+        if (roles.length > 0) {
+          roles.forEach(role => {
+            const badge = document.createElement('span');
+            badge.className = 'role-badge';
+            badge.textContent = role;
+            rolesContainer.appendChild(badge);
+          });
+        } else {
+          rolesContainer.parentElement.querySelector('.roles-label').style.display = 'none';
+          rolesContainer.style.display = 'none';
+        }
+
+        showState(formEl);
+      } catch (err) {
+        errorMsgEl.textContent = 'Unable to connect to the server. Please try again later.';
+        showState(errorEl);
+      }
+    }
+
+    // Handle form submission
+    document.getElementById('signup-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      clearFieldErrors();
+      submitError.style.display = 'none';
+
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+
+      let valid = true;
+
+      if (!name) {
+        showFieldError('name', 'name-error');
+        valid = false;
+      }
+      if (!validateEmail(email)) {
+        showFieldError('email', 'email-error');
+        valid = false;
+      }
+      if (password.length < 8) {
+        showFieldError('password', 'password-error');
+        valid = false;
+      }
+      if (password !== confirmPassword) {
+        showFieldError('confirm-password', 'confirm-error');
+        valid = false;
+      }
+
+      if (!valid) return;
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span>Creating account...';
+
+      try {
+        const res = await fetch(`${API}/api/agents/signup/${encodeURIComponent(code)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          submitError.textContent = data.detail || data.message || 'Something went wrong. Please try again.';
+          submitError.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Create Account';
+          return;
+        }
+
+        showState(successEl);
+      } catch (err) {
+        submitError.textContent = 'Unable to connect to the server. Please try again later.';
+        submitError.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Account';
+      }
+    });
+
+    // Clear field errors on input
+    document.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', function() {
+        this.classList.remove('error');
+        const errorEl = document.getElementById(this.id + '-error') ||
+                        document.getElementById(this.id.replace('confirm-password', 'confirm') + '-error');
+        if (errorEl) errorEl.style.display = 'none';
+      });
+    });
+
+    // Start validation
+    validateCode();
+  </script>
+</body>
+</html>

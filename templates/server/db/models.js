@@ -44,12 +44,36 @@ const agentSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'supervisor', 'agent'], default: 'agent' },
+  role: { type: String, enum: ['admin', 'supervisor', 'agent'], default: 'agent' }, // legacy compat
+  systemRole: { type: String, enum: ['admin', 'manager', 'agent'], default: 'agent' },
+  roles: [{ type: String }], // team/role names e.g. ['Support', 'PreSales']
+  managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
   status: { type: String, enum: ['online', 'offline', 'away'], default: 'offline' },
   avatar: String,
   specialties: [String], // Categories they handle
+  active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   lastLogin: Date
+}, { timestamps: true });
+
+const roleSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  description: String,
+  icon: { type: String, default: '👥' },
+  managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
+  active: { type: Boolean, default: true }
+}, { timestamps: true });
+
+const inviteLinkSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents', required: true },
+  defaultRoles: [String],
+  defaultManagerId: { type: mongoose.Schema.Types.ObjectId, ref: 'aichatdesk_agents' },
+  maxUses: { type: Number, default: 0 }, // 0 = unlimited
+  usedCount: { type: Number, default: 0 },
+  expiresAt: Date,
+  active: { type: Boolean, default: true },
+  label: String
 }, { timestamps: true });
 
 const knowledgeBaseSchema = new mongoose.Schema({
@@ -121,6 +145,8 @@ const CannedResponse = mongoose.model('aichatdesk_canned_responses', cannedRespo
 const WorkflowCategory = mongoose.model('aichatdesk_workflow_categories', workflowCategorySchema);
 const ResponseCache = mongoose.model('aichatdesk_response_cache', responseCacheSchema);
 const TeamsConversation = mongoose.model('aichatdesk_teams_conversations', teamsConversationSchema);
+const Role = mongoose.model('aichatdesk_roles', roleSchema);
+const InviteLink = mongoose.model('aichatdesk_invite_links', inviteLinkSchema);
 
 module.exports = {
   Chat,
@@ -131,5 +157,7 @@ module.exports = {
   CannedResponse,
   WorkflowCategory,
   ResponseCache,
-  TeamsConversation
+  TeamsConversation,
+  Role,
+  InviteLink
 };

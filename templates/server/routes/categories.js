@@ -1,7 +1,31 @@
 const express = require('express');
 const router = express.Router();
+const Anthropic = require('@anthropic-ai/sdk');
 const { WorkflowCategory } = require('../db/models');
 const { authenticateAgent } = require('../middleware/auth');
+
+// AI-powered icon selection based on category name and prompt
+async function pickIcon(name, prompt) {
+  try {
+    if (!process.env.CLAUDE_API_KEY) return '💬';
+    const client = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
+    const res = await client.messages.create({
+      model: 'claude-haiku-3-20240307',
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: `Pick ONE emoji icon that best represents this customer support category.\nCategory: ${name}\nPurpose: ${prompt.substring(0, 200)}\n\nRespond with ONLY the single emoji, nothing else.`
+      }]
+    });
+    const emoji = res.content[0].text.trim();
+    // Validate it's actually an emoji (1-2 chars or emoji sequences)
+    if (emoji.length <= 8 && emoji.length > 0) return emoji;
+    return '💬';
+  } catch (err) {
+    console.error('[Categories] AI icon pick failed:', err.message);
+    return '💬';
+  }
+}
 
 // GET /api/categories - List active categories (public, for widget)
 router.get('/', async (req, res) => {
@@ -35,9 +59,11 @@ router.post('/', authenticateAgent, async (req, res) => {
     if (!name || !prompt) {
       return res.status(400).json({ error: 'name and prompt are required' });
     }
+    // Auto-pick icon using AI if not provided
+    const resolvedIcon = icon || await pickIcon(name, prompt);
     const category = await WorkflowCategory.create({
       name,
-      icon: icon || '💬',
+      icon: resolvedIcon,
       prompt,
       active: active !== false,
       sortOrder: sortOrder || 0
@@ -54,9 +80,16 @@ router.post('/', authenticateAgent, async (req, res) => {
 router.put('/:id', authenticateAgent, async (req, res) => {
   try {
     const { name, icon, prompt, active, sortOrder } = req.body;
+    // Re-pick icon if name or prompt changed and no explicit icon provided
+    const update = { name, prompt, active, sortOrder };
+    if (icon) {
+      update.icon = icon;
+    } else if (name && prompt) {
+      update.icon = await pickIcon(name, prompt);
+    }
     const category = await WorkflowCategory.findByIdAndUpdate(
       req.params.id,
-      { name, icon, prompt, active, sortOrder },
+      update,
       { new: true, runValidators: true }
     );
     if (!category) {

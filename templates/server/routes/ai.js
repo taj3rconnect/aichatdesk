@@ -111,11 +111,13 @@ Format rules:
     }
 
     // Inject workflow category prompt if chat has one
+    let hasWorkflowCategory = false;
     const chat = await Chat.findById(chatId);
     if (chat && chat.metadata?.categoryId) {
       const category = await WorkflowCategory.findById(chat.metadata.categoryId);
       if (category && category.prompt) {
         systemPrompt = category.prompt + '\n\n' + systemPrompt;
+        hasWorkflowCategory = true;
         console.log(`[AI Query] Using workflow category: ${category.name}`);
       }
     }
@@ -152,12 +154,17 @@ Format rules:
     // 7. Calculate confidence score
     let confidence = 0.5; // Default baseline
 
+    // Workflow category responses are always high confidence (admin-defined prompts)
+    if (hasWorkflowCategory) {
+      confidence = 0.85;
+    }
+
     if (ragResults.length > 0) {
       const maxSimilarity = Math.max(...ragResults.map(r => r.similarity));
       if (maxSimilarity > 0.7) {
         confidence = 0.9;
       } else if (maxSimilarity >= 0.5) {
-        confidence = 0.7;
+        confidence = Math.max(confidence, 0.7);
       }
     }
 
