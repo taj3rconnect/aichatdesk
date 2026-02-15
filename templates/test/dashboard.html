@@ -144,6 +144,20 @@
     .login-box button { width: 100%; padding: 12px; background: #6C5CE7; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
     .login-box button:hover { background: #5a4bd1; }
     .login-box .error { color: #e74c3c; font-size: 13px; text-align: center; margin-top: 10px; display: none; }
+    .login-box .login-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 12px; }
+    .login-box .login-options label { color: #aaa; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .login-box .login-options label input { width: auto; margin: 0; }
+    .login-box .forgot-link { color: #6C5CE7; cursor: pointer; background: none; border: none; font-size: 12px; }
+    .login-box .forgot-link:hover { text-decoration: underline; }
+    .password-field { position: relative; }
+    .password-field input { padding-right: 40px !important; }
+    .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 2px; margin-bottom: 12px; }
+    .password-toggle:hover { color: #e0e0e0; }
+    .forgot-form { display: none; }
+    .forgot-form.active { display: block; }
+    .login-form.hidden { display: none; }
+    .logout-btn { background: none; border: 1px solid #e74c3c44; color: #e74c3c; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .logout-btn:hover { background: #e74c3c22; border-color: #e74c3c; }
     /* Split panel styles */
     .split-panel { border-right: 1px solid #2a2a4a; }
     .split-panel:last-child { border-right: none; }
@@ -202,9 +216,24 @@
   <div id="login-overlay">
     <div class="login-box">
       <h2>Agent Login</h2>
-      <input type="email" id="login-email" value="admin@myapp.com" placeholder="Email">
-      <input type="password" id="login-password" value="changeme123" placeholder="Password">
-      <button onclick="login()">Login</button>
+      <!-- Login form -->
+      <div id="login-form-section">
+        <input type="email" id="login-email" value="admin@myapp.com" placeholder="Email">
+        <div class="password-field">
+          <input type="password" id="login-password" value="changeme123" placeholder="Password">
+          <button type="button" class="password-toggle" onclick="togglePasswordVisibility('login-password', this)">&#x1F441;</button>
+        </div>
+        <div class="login-options">
+          <label><input type="checkbox" id="remember-me"> Remember me</label>
+          <button class="forgot-link" onclick="showForgotPassword()">Forgot password?</button>
+        </div>
+        <button onclick="login()">Login</button>
+      </div>
+      <!-- Forgot password form -->
+      <div id="forgot-form-section" class="forgot-form">
+        <p style="color:#aaa; font-size:13px; margin-bottom:16px; text-align:center;">Enter your email and new password. An admin or your manager must reset your password from the Users panel.</p>
+        <button onclick="showLoginForm()" style="margin-bottom:12px; background:#3a3a5a;">&larr; Back to Login</button>
+      </div>
       <div class="error" id="login-error"></div>
     </div>
   </div>
@@ -212,11 +241,13 @@
   <div class="header">
     <h1>AIChatDesk Agent Dashboard</h1>
     <div class="agent-info">
-      <span><span class="status-dot" id="agent-dot"></span> <span id="agent-name">Agent</span></span>
+      <span><span class="status-dot" id="agent-dot"></span> <span id="agent-name" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;" onclick="openProfileModal()" title="My Profile">Agent</span></span>
       <span style="color: #666;">|</span>
       <span>Server: <span id="server-status">Checking...</span></span>
       <span style="color: #666;">|</span>
       <span>WS: <span id="ws-status" class="disconnected">Disconnected</span></span>
+      <span style="color: #666;">|</span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
     </div>
   </div>
 
@@ -442,7 +473,10 @@
       </div>
       <div class="modal-field" id="user-modal-password-field">
         <label>Password</label>
-        <input type="text" id="user-modal-password" placeholder="Min 8 characters">
+        <div class="password-field">
+          <input type="password" id="user-modal-password" placeholder="Min 8 characters">
+          <button type="button" class="password-toggle" onclick="togglePasswordVisibility('user-modal-password', this)" style="margin-bottom:0;">&#x1F441;</button>
+        </div>
       </div>
       <div class="modal-field" id="user-modal-sysrole-field">
         <label>System Role</label>
@@ -461,6 +495,14 @@
         <select id="user-modal-manager">
           <option value="">None</option>
         </select>
+      </div>
+      <div class="modal-field">
+        <label>Office 365 Email (for calendar)</label>
+        <input type="email" id="user-modal-office365" placeholder="user@company.com">
+      </div>
+      <div class="modal-field">
+        <label>Microsoft Teams Email</label>
+        <input type="email" id="user-modal-teams" placeholder="user@company.com">
       </div>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeModal('user-modal')">Cancel</button>
@@ -543,12 +585,59 @@
       </div>
       <div class="modal-field">
         <label>New Password</label>
-        <input type="text" id="reset-pw-value" placeholder="Min 8 characters">
+        <div class="password-field">
+          <input type="password" id="reset-pw-value" placeholder="Min 8 characters">
+          <button type="button" class="password-toggle" onclick="togglePasswordVisibility('reset-pw-value', this)" style="margin-bottom:0;">&#x1F441;</button>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeModal('reset-pw-modal')">Cancel</button>
         <button class="btn-primary" onclick="resetAgentPassword()">Reset Password</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Profile Settings Modal -->
+  <div class="modal-overlay" id="profile-modal">
+    <div class="modal-box">
+      <h3>My Profile</h3>
+      <div class="modal-field">
+        <label>Name</label>
+        <input type="text" id="profile-name" placeholder="Your name">
+      </div>
+      <div class="modal-field">
+        <label>Email (read-only)</label>
+        <input type="email" id="profile-email" readonly style="opacity:0.6;">
+      </div>
+      <div class="modal-field">
+        <label>Office 365 Email (for calendar integration)</label>
+        <input type="email" id="profile-office365" placeholder="user@company.com">
+      </div>
+      <div class="modal-field">
+        <label>Microsoft Teams Email</label>
+        <input type="email" id="profile-teams" placeholder="user@company.com">
+      </div>
+      <hr style="border:none; border-top:1px solid #2a2a4a; margin:16px 0;">
+      <h4 style="color:#aaa; font-size:13px; margin-bottom:12px;">Change Password</h4>
+      <div class="modal-field">
+        <label>Current Password</label>
+        <div class="password-field">
+          <input type="password" id="profile-current-pw" placeholder="Enter current password">
+          <button type="button" class="password-toggle" onclick="togglePasswordVisibility('profile-current-pw', this)" style="margin-bottom:0;">&#x1F441;</button>
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>New Password</label>
+        <div class="password-field">
+          <input type="password" id="profile-new-pw" placeholder="Min 8 characters">
+          <button type="button" class="password-toggle" onclick="togglePasswordVisibility('profile-new-pw', this)" style="margin-bottom:0;">&#x1F441;</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('profile-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveProfile()">Save Profile</button>
+      </div>
+      <div id="profile-msg" style="margin-top:10px; font-size:12px; text-align:center; display:none;"></div>
     </div>
   </div>
 
@@ -577,12 +666,58 @@
       el.scrollTop = el.scrollHeight;
     }
 
+    // --- Password visibility toggle ---
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '&#x1F576;';
+      } else {
+        input.type = 'password';
+        btn.innerHTML = '&#x1F441;';
+      }
+    }
+
+    // --- Forgot password / login form toggle ---
+    function showForgotPassword() {
+      document.getElementById('login-form-section').classList.add('hidden');
+      document.getElementById('login-form-section').style.display = 'none';
+      document.getElementById('forgot-form-section').classList.add('active');
+      document.getElementById('forgot-form-section').style.display = 'block';
+    }
+    function showLoginForm() {
+      document.getElementById('forgot-form-section').classList.remove('active');
+      document.getElementById('forgot-form-section').style.display = 'none';
+      document.getElementById('login-form-section').classList.remove('hidden');
+      document.getElementById('login-form-section').style.display = '';
+    }
+
+    // --- Remember me: auto-fill from localStorage ---
+    (function initRememberMe() {
+      const saved = localStorage.getItem('aichatdesk_remember');
+      if (saved) {
+        try {
+          const { email } = JSON.parse(saved);
+          document.getElementById('login-email').value = email;
+          document.getElementById('remember-me').checked = true;
+        } catch (e) {}
+      }
+    })();
+
     // --- Login ---
     async function login() {
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
       const errorEl = document.getElementById('login-error');
       errorEl.style.display = 'none';
+
+      // Remember me
+      const rememberMe = document.getElementById('remember-me').checked;
+      if (rememberMe) {
+        localStorage.setItem('aichatdesk_remember', JSON.stringify({ email }));
+      } else {
+        localStorage.removeItem('aichatdesk_remember');
+      }
 
       try {
         const res = await fetch(`${API}/api/agents/login`, {
@@ -596,6 +731,13 @@
           token = data.token;
           agentId = data.agent?.id;
           agentName = data.agent?.name || 'Agent';
+
+          // Persist session if remember me
+          if (rememberMe) {
+            localStorage.setItem('aichatdesk_token', token);
+            localStorage.setItem('aichatdesk_agent', JSON.stringify(data.agent));
+          }
+
           document.getElementById('login-overlay').classList.add('hidden');
           document.getElementById('agent-name').textContent = agentName;
           document.getElementById('agent-dot').classList.add('online');
@@ -618,6 +760,60 @@
         errorEl.textContent = 'Cannot connect to server';
         errorEl.style.display = 'block';
       }
+    }
+
+    // --- Auto-login from saved session ---
+    (function tryAutoLogin() {
+      const savedToken = localStorage.getItem('aichatdesk_token');
+      const savedAgent = localStorage.getItem('aichatdesk_agent');
+      if (savedToken && savedAgent) {
+        try {
+          const agent = JSON.parse(savedAgent);
+          token = savedToken;
+          agentId = agent.id;
+          agentName = agent.name || 'Agent';
+          currentAgentSystemRole = agent.systemRole || agent.role || 'agent';
+          document.getElementById('login-overlay').classList.add('hidden');
+          document.getElementById('agent-name').textContent = agentName;
+          document.getElementById('agent-dot').classList.add('online');
+          document.getElementById('server-status').textContent = 'Connected';
+          document.getElementById('server-status').classList.add('connected');
+          if (currentAgentSystemRole === 'admin' || currentAgentSystemRole === 'manager') {
+            document.getElementById('tab-users').style.display = '';
+          }
+          log(`Auto-logged in as ${agentName} (${currentAgentSystemRole})`);
+          loadChats();
+          loadKBFiles();
+          connectWS();
+        } catch (e) {
+          localStorage.removeItem('aichatdesk_token');
+          localStorage.removeItem('aichatdesk_agent');
+        }
+      }
+    })();
+
+    // --- Logout ---
+    async function logout() {
+      try {
+        if (token) {
+          await fetch(`${API}/api/agents/logout`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+        }
+      } catch (e) {}
+      token = null;
+      agentId = null;
+      agentName = '';
+      currentAgentSystemRole = '';
+      localStorage.removeItem('aichatdesk_token');
+      localStorage.removeItem('aichatdesk_agent');
+      if (ws) { ws.close(); ws = null; }
+      document.getElementById('login-overlay').classList.remove('hidden');
+      document.getElementById('agent-dot').classList.remove('online');
+      document.getElementById('agent-name').textContent = 'Agent';
+      document.getElementById('tab-users').style.display = 'none';
+      log('Logged out');
     }
 
     // --- Load chats ---
@@ -1690,6 +1886,8 @@
         document.getElementById('user-modal-sysrole-field').style.display = 'none';
       }
       const agentRoles = isEdit ? (agent.roles || []) : [];
+      document.getElementById('user-modal-office365').value = isEdit ? (agent.office365Email || '') : '';
+      document.getElementById('user-modal-teams').value = isEdit ? (agent.teamsEmail || '') : '';
       await populateRoleCheckboxes('user-modal-roles', agentRoles);
       await populateManagerDropdown('user-modal-manager', isEdit ? agent.managerId : '');
       document.getElementById('user-modal').classList.add('open');
@@ -1703,11 +1901,13 @@
       const systemRole = currentAgentSystemRole === 'admin' ? document.getElementById('user-modal-sysrole').value : 'agent';
       const roles = Array.from(document.querySelectorAll('#user-modal-roles input:checked')).map(cb => cb.value);
       const managerId = document.getElementById('user-modal-manager').value || null;
+      const office365Email = document.getElementById('user-modal-office365').value.trim();
+      const teamsEmail = document.getElementById('user-modal-teams').value.trim();
 
       if (!name || !email) { alert('Name and email are required'); return; }
       if (!id && (!password || password.length < 8)) { alert('Password must be at least 8 characters'); return; }
 
-      const body = { name, email, systemRole, roles, managerId };
+      const body = { name, email, systemRole, roles, managerId, office365Email, teamsEmail };
       if (!id) body.password = password;
 
       try {
@@ -1862,6 +2062,76 @@
         closeModal('reset-pw-modal');
         log('Password reset successfully');
       } catch (err) { alert('Reset failed: ' + err.message); }
+    }
+
+    // --- Profile modal ---
+    async function openProfileModal() {
+      const msgEl = document.getElementById('profile-msg');
+      msgEl.style.display = 'none';
+      document.getElementById('profile-current-pw').value = '';
+      document.getElementById('profile-new-pw').value = '';
+
+      try {
+        const res = await fetch(`${API}/api/agents/me`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.agent) {
+          document.getElementById('profile-name').value = data.agent.name || '';
+          document.getElementById('profile-email').value = data.agent.email || '';
+          document.getElementById('profile-office365').value = data.agent.office365Email || '';
+          document.getElementById('profile-teams').value = data.agent.teamsEmail || '';
+        }
+      } catch (e) {}
+
+      document.getElementById('profile-modal').classList.add('open');
+    }
+
+    async function saveProfile() {
+      const msgEl = document.getElementById('profile-msg');
+      msgEl.style.display = 'none';
+
+      const name = document.getElementById('profile-name').value.trim();
+      const office365Email = document.getElementById('profile-office365').value.trim();
+      const teamsEmail = document.getElementById('profile-teams').value.trim();
+      const currentPw = document.getElementById('profile-current-pw').value;
+      const newPw = document.getElementById('profile-new-pw').value;
+
+      if (!name) { alert('Name is required'); return; }
+
+      try {
+        // Update profile
+        const res = await fetch(`${API}/api/agents/me`, {
+          method: 'PUT',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, office365Email, teamsEmail })
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+
+        document.getElementById('agent-name').textContent = name;
+        agentName = name;
+
+        // Change password if both fields filled
+        if (currentPw && newPw) {
+          if (newPw.length < 8) { alert('New password must be at least 8 characters'); return; }
+          const pwRes = await fetch(`${API}/api/agents/change-password`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+          });
+          const pwData = await pwRes.json();
+          if (pwData.error) { alert(pwData.error); return; }
+        }
+
+        msgEl.textContent = 'Profile saved successfully!';
+        msgEl.style.color = '#00b894';
+        msgEl.style.display = 'block';
+        log('Profile updated');
+        setTimeout(() => closeModal('profile-modal'), 1500);
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+      }
     }
 
     // Poll for new chats

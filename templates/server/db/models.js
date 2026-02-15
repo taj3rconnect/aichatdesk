@@ -51,6 +51,8 @@ const agentSchema = new mongoose.Schema({
   status: { type: String, enum: ['online', 'offline', 'away'], default: 'offline' },
   avatar: String,
   specialties: [String], // Categories they handle
+  office365Email: String, // Office 365 calendar email
+  teamsEmail: String, // Microsoft Teams email
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   lastLogin: Date

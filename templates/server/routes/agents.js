@@ -98,11 +98,41 @@ router.get('/me', authenticateAgent, async (req, res) => {
         roles: agent.roles || [], managerId: agent.managerId,
         managerName: manager ? manager.name : null,
         status: agent.status, specialties: agent.specialties || [],
-        lastLogin: agent.lastLogin, avatar: agent.avatar
+        lastLogin: agent.lastLogin, avatar: agent.avatar,
+        office365Email: agent.office365Email || '',
+        teamsEmail: agent.teamsEmail || ''
       }
     });
   } catch (err) {
     console.error('Get profile error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================
+// PROFILE UPDATE (self)
+// ============================================================
+
+router.put('/me', authenticateAgent, async (req, res) => {
+  try {
+    const agent = await Agent.findById(req.agent.agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const { name, office365Email, teamsEmail } = req.body;
+    if (name) agent.name = name;
+    if (office365Email !== undefined) agent.office365Email = office365Email;
+    if (teamsEmail !== undefined) agent.teamsEmail = teamsEmail;
+
+    await agent.save();
+
+    return res.json({
+      agent: {
+        id: agent._id, email: agent.email, name: agent.name,
+        office365Email: agent.office365Email || '',
+        teamsEmail: agent.teamsEmail || ''
+      }
+    });
+  } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -210,7 +240,9 @@ router.get('/', authenticateAgent, requireRole('admin', 'manager'), async (req, 
         managerId: a.managerId,
         managerName: a.managerId ? (managerMap[a.managerId.toString()] || '') : '',
         status: a.status, specialties: a.specialties || [],
-        lastLogin: a.lastLogin
+        lastLogin: a.lastLogin,
+        office365Email: a.office365Email || '',
+        teamsEmail: a.teamsEmail || ''
       }))
     });
   } catch (err) {
@@ -289,7 +321,7 @@ router.put('/:agentId', authenticateAgent, requireRole('admin', 'manager'), asyn
       if (!canManage) return res.status(403).json({ error: 'You can only manage agents in your teams' });
     }
 
-    const { name, email, systemRole, roles, managerId, password } = req.body;
+    const { name, email, systemRole, roles, managerId, password, office365Email, teamsEmail } = req.body;
 
     if (name) target.name = name;
     if (email && EMAIL_REGEX.test(email)) target.email = email.toLowerCase();
@@ -302,6 +334,8 @@ router.put('/:agentId', authenticateAgent, requireRole('admin', 'manager'), asyn
     if (password && password.length >= 8) {
       target.passwordHash = await bcrypt.hash(password, 10);
     }
+    if (office365Email !== undefined) target.office365Email = office365Email;
+    if (teamsEmail !== undefined) target.teamsEmail = teamsEmail;
 
     await target.save();
 
