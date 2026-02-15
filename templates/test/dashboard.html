@@ -445,7 +445,7 @@
   </div>
 
   <div class="connection-bar">
-    <span>API: http://localhost:8004</span>
+    <span>API: http://localhost:8005</span>
     <span>Active Chats: <span id="chat-count">0</span></span>
     <span>Queue: <span id="queue-count">0</span></span>
     <span style="margin-left:auto;">
@@ -905,7 +905,7 @@
       }
     })();
 
-    const API = 'http://localhost:8004';
+    const API = 'http://localhost:8005';
     let token = null;
     let agentId = null;
     let agentName = '';
@@ -1776,7 +1776,7 @@
     // --- WebSocket ---
     function connectWS() {
       try {
-        ws = new WebSocket('ws://localhost:8004/ws');
+        ws = new WebSocket('ws://localhost:8005/ws');
         ws.onopen = () => {
           document.getElementById('ws-status').textContent = 'Connected';
           document.getElementById('ws-status').className = 'connected';

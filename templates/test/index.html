@@ -582,8 +582,8 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
-    const API = 'http://localhost:8004';
-    const WS_URL = 'ws://localhost:8004/ws';
+    const API = 'http://localhost:8005';
+    const WS_URL = 'ws://localhost:8005/ws';
 
     const BLOCKED_EXTENSIONS = ['.exe','.com','.bat','.cmd','.scr','.pif','.msi','.vbs','.js','.ws','.wsf','.ps1','.sh'];
 
@@ -813,7 +813,23 @@
         if (document.getElementById('category-bar').classList.contains('active')) {
           addSystemMessage('Please select a category to get started.');
         } else {
-          addSystemMessage('Connected! Ask anything.');
+          // No categories — trigger AI greeting automatically
+          addSystemMessage('Connected!');
+          document.getElementById('typing-indicator').classList.add('show');
+          try {
+            const aiRes = await fetch(`${API}/api/ai/query`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chatId, message: 'Hello', userEmail, userName, pageContext: window.location.pathname })
+            });
+            const aiData = await aiRes.json();
+            document.getElementById('typing-indicator').classList.remove('show');
+            if (aiData.response) {
+              addMessage(aiData.response, 'ai', null, aiData.confidence);
+            }
+          } catch (e) {
+            document.getElementById('typing-indicator').classList.remove('show');
+          }
         }
       } catch (err) { alert('Failed to connect: ' + err.message); }
     }
